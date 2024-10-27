@@ -27,7 +27,8 @@ class Node:
         # while True:
         #     message, address = socket.recvfrom(1024)
         #     message = message.upper()
-        threading.Thread(target=self.handle_udp_client, args=(server_socket, )).start()
+        # threading.Thread(target=self.handle_udp_client, args=(server_socket, )).start()
+        self.handle_udp_client(server_socket)
 
     def handle_udp_client(self, server_socket):
         while True:
@@ -41,11 +42,12 @@ class Node:
 
             try:
                 file_wanted = data_dict['FILE_WANTED']
-                original_address = data_dict['ADDRES']
+                sender_address = data_dict['ADDRESS']
+                original_address = data_dict['ORIGINAL_ADDRESS']
                 flooding = data_dict['FLOODING']
 
-                print(original_address)
-                print(flooding)
+                print(f"Adress: {original_address}")
+                print(f"Remaining flooding: {flooding}")
 
                 matching_files = self.look_for_chunks(file_wanted)
 
@@ -57,20 +59,26 @@ class Node:
                         'transfer_rate': self.transfer_rate
                     }
                     message_json = json.dumps(message_sent)
-                    server_socket.sendto(message_json.encode('utf-8'), (original_address[0], int(original_address[1])))
+                    self.create_client(original_address[0], int(original_address[1]), message_json)
 
                 # Caso o flooding seja maior que 0, criar conexão UDP pra procurar nos known_nodes se tem aquele arquivo
                 if flooding > 0:
                     message_sent = {
                         'file_wanted': file_wanted,
                         'address': (self.host, self.port),
+                        'original_address': (original_address[0], original_address[1]),
                         'flooding': flooding-1
                     }
                     message_json = json.dumps(message_sent)
 
                     for node in self.known_nodes:
-                        self.create_client(original_address[0], original_address[1], node.host, node.port, message_json)
-            
+                        # Verifica se a requisição não está sendo feita para o nodo original ou para o nodo requisitor
+                        if (node.host != original_address[0] or node.port != original_address[1]) and \
+                            (node.host != sender_address[0] or node.port != sender_address[1]):
+                            self.create_client(node.host, node.port, message_json)
+                else:
+                    print("Flooding encerrado.")
+
             except KeyError:
                 # Tratamento dos arquivos recebidos!!!
                 pass
@@ -91,29 +99,27 @@ class Node:
         return matching_files
 
 
-    def create_client(self, original_host, original_port, other_host, other_port, message_sent):
+    def create_client(self, other_host, other_port, message_sent):
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         client_socket.settimeout(5.0)
         start = time.time()
+        
+        # Tenta 10 vezes
+        for pings in range(10):
+            print(f'Ping {pings}: Host {self.id} - {self.host}:{self.port} sending message to {other_host}:{other_port}')
+            client_socket.sendto(message_sent.encode('utf-8'), (other_host, int(other_port)))
 
-        # Verifica se a requisição não está sendo feita para o nodo original
-        if original_port != other_port and original_host != original_port:
-            # tenta 10 vezes
-            for pings in range(10):
-                print(f'Ping {pings}: Host {self.id} - {self.host}:{self.port} sending message to {other_host}:{other_port}')
-                client_socket.sendto(message_sent.encode('utf-8'), (other_host, int(other_port)))
-
-                try:
-                    data, server = client_socket.recvfrom(1024)
-                    end = time.time()
-                    elapsed = end - start
-                    print(f'{data} {pings} {elapsed}')
-                    break
-                except socket.timeout:
-                    print('REQUEST TIMED OUT')
-                finally:
-                    client_socket.close()
-                    break
+            try:
+                data, server = client_socket.recvfrom(1024)
+                end = time.time()
+                elapsed = end - start
+                print(f'{data} {pings} {elapsed}')
+                break
+            except socket.timeout:
+                print(f'REQUEST TIMED OUT FOR CLIENT {self.id}')
+            finally:
+                client_socket.close()
+                break
             
         
         # try:

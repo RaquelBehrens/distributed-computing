@@ -59,14 +59,16 @@ for node_id in node_ids:
 
 
 search_node = nodes[search_node_id]
-search_node.create_udp_socket()
+# search_node.create_udp_socket()
+threading.Thread(target=start_node_udp_socket, args=(search_node,)).start()
 
 message_sent = {
     'file_wanted': file_wanted,
-    'addres': (search_node.host, search_node.port),
+    'address': (search_node.host, search_node.port),
+    'original_address': (search_node.host, search_node.port),
     'flooding': flooding
 }
 message_json = json.dumps(message_sent)
 
 for known_node in search_node.known_nodes:
-    search_node.create_client(search_node.host, search_node.port, known_node.host, known_node.port, message_json)
+    search_node.create_client(known_node.host, known_node.port, message_json)
