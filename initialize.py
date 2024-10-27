@@ -3,21 +3,30 @@ import threading
 from src.node import Node
 from src.sort import merge_sort_nodes
 
-# Recebe a lista de inteiros passada pela linha de comando
-if len(sys.argv) > 1:
-    node_ids = [int(arg) for arg in sys.argv[1:]]
-else:
-    print("Por favor, passe uma lista de inteiros representando IDs dos nós.")
+# Pergunta o ID do nó que vai procurar o arquivo
+search_node = input("Digite o nó que vai procurar o arquivo: ")
+try:
+    search_node = int(search_node)
+except ValueError:
+    print("O nó precisa ser representado por um inteiro.")
+
+# Pergunta os IDs dos nós que vão estar rodando seus sockets nesse computador
+node_ids_input = input("Digite uma lista de IDs dos nós que vão estar executando nesse computador, separados por vírgula: ")
+try:
+    node_ids = [int(id.strip()) for id in node_ids_input.split(',')]
+except ValueError:
+    print("Precisa ser uma lista de números inteiros separados por vírgula.")
     sys.exit(1)
 
+# Nessa variável vão ficar armazenados os nós encontrados durante a configuração
 nodes = []
 
 # Carregar configuração dos nós
 with open('./config.txt', 'r') as arquivo:
     for line in arquivo:
         id, host, port, transfer_rate = line.split(' ')
-        nodo = Node(id=id[:-1], host=host[:-1], port=port[:-1], transfer_rate=transfer_rate)
-        nodes.append(nodo)
+        node = Node(id=id[:-1], host=host[:-1], port=port[:-1], transfer_rate=transfer_rate)
+        nodes.append(node)
     merge_sort_nodes(nodes)
 
 # Carregar topologia dos nós
@@ -40,9 +49,12 @@ def start_node_udp_socket(node):
 
 # Criar e iniciar uma thread para cada ID de nó recebido
 for node_id in node_ids:
-    node = nodes[node_id]
-    thread = threading.Thread(target=start_node_udp_socket, args=(node,))
-    thread.start()
+    if node_id < len(nodes):
+        node = nodes[node_id]
+        thread = threading.Thread(target=start_node_udp_socket, args=(node,))
+        thread.start()
+    else:
+        print(f"Nó com ID {node_id} não encontrado.")
 
 
 # current_node = nodes[id]
