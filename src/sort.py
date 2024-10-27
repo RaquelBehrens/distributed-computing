@@ -33,9 +33,9 @@ def merge_nodes(esquerda, direita):
 
     return resultado
 
-# Exemplo de uso com objetos Node
-nodes = [Node(38, 1), Node(27, 2), Node(43, 3), Node(3, 4), Node(9, 5), Node(82, 6), Node(10, 5)]
-nodes_ordenados = merge_sort_nodes(nodes)
+# # Exemplo de uso com objetos Node
+# nodes = [Node(38, 1), Node(27, 2), Node(43, 3), Node(3, 4), Node(9, 5), Node(82, 6), Node(10, 5)]
+# nodes_ordenados = merge_sort_nodes(nodes)
 
-# Imprimir os ids dos nodes ordenados
-print("Nodes ordenados por id:", [node.id for node in nodes_ordenados])
+# # Imprimir os ids dos nodes ordenados
+# print("Nodes ordenados por id:", [node.id for node in nodes_ordenados])

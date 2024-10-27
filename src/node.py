@@ -20,7 +20,7 @@ class Node:
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         server_socket.bind((self.host, int(self.port)))
         # s.listen()
-        # print(f"Node {self.id} listening in {self.host}:{self.port}")
+        print(f"Node {self.id} listening in {self.host}:{self.port}")
         # conn, addr = s.accept()
         # print(f"Connected by {addr}")
 
