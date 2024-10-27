@@ -36,6 +36,10 @@ class Node:
             message = message.upper()
             print(f"Node {self.id}, with {self.host}:{self.port}, received: {message!r} from {address}")
 
+            # Envia confirmação de recebimento de mensagem ao sender
+            ack_message = json.dumps({'status': 'received'})
+            server_socket.sendto(ack_message.encode('utf-8'), address)
+
             # Converte os bytes para string
             data_str = message.decode('utf-8')
             data_dict = json.loads(data_str)
@@ -81,6 +85,8 @@ class Node:
 
             except KeyError:
                 # Tratamento dos arquivos recebidos!!!
+                print(f'Node {self.id}')
+                print(data_dict)
                 pass
 
             # with conn:
@@ -102,22 +108,31 @@ class Node:
     def create_client(self, other_host, other_port, message_sent):
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         client_socket.settimeout(5.0)
+
+        max_attempts = 10
         start = time.time()
         
         # Tenta 10 vezes
-        for pings in range(10):
+        for pings in range(max_attempts):
             print(f'Ping {pings}: Host {self.id} - {self.host}:{self.port} sending message to {other_host}:{other_port}')
             client_socket.sendto(message_sent.encode('utf-8'), (other_host, int(other_port)))
 
             try:
                 data, server = client_socket.recvfrom(1024)
+                ack = json.loads(data.decode('utf-8'))
+                if ack.get('status') == 'received':
+                    print(f"Node {self.id} received confirmation from {server[0]}:{server[1]}")
+                    break
+            except socket.timeout:
+                print(f'REQUEST TIMED OUT FOR CLIENT {self.id} - no acknowledgment received from {other_host}:{other_port}')    
+            finally:
+                if pings == max_attempts - 1:
+                    print("Max attempts reached, no acknowledgment received.")
+
                 end = time.time()
                 elapsed = end - start
-                print(f'{data} {pings} {elapsed}')
-                break
-            except socket.timeout:
-                print(f'REQUEST TIMED OUT FOR CLIENT {self.id}')
-            finally:
+                print(f'Pings: {pings}, Elapsed: {elapsed}')
+
                 client_socket.close()
                 break
             
