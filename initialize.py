@@ -4,14 +4,14 @@ from src.node import Node
 from src.sort import merge_sort_nodes
 
 # Pergunta o ID do nó que vai procurar o arquivo
-search_node = input("Digite o nó que vai procurar o arquivo: ")
+search_node_id = input("Digite o nó que vai procurar o arquivo (aqui vai ser inicializado seu socket UDP também): ")
 try:
-    search_node = int(search_node)
+    search_node_id = int(search_node_id)
 except ValueError:
     print("O nó precisa ser representado por um inteiro.")
 
 # Pergunta os IDs dos nós que vão estar rodando seus sockets nesse computador
-node_ids_input = input("Digite uma lista de IDs dos nós que vão estar executando nesse computador, separados por vírgula: ")
+node_ids_input = input("Digite uma lista de IDs dos outros nós que vão estar executando nesse computador, separados por vírgula: ")
 try:
     node_ids = [int(id.strip()) for id in node_ids_input.split(',')]
 except ValueError:
@@ -33,15 +33,15 @@ with open('./config.txt', 'r') as arquivo:
 with open('./topologia.txt', 'r') as arquivo:
     for line in arquivo:
         id, known_hosts = line.split(':')
-        known_hosts = [int(num.strip()) for num in known_hosts.split(',')]
+        known_hosts = [nodes[int(num.strip())] for num in known_hosts.split(',')]
         nodes[int(id)].add_known_node(known_hosts)
 
 # Carregar arquivo desejado
 with open('./image.png.p2p', 'r') as arquivo:
     linhas = arquivo.readlines()
     file_wanted = linhas[0].strip()
-    chunks = linhas[1].strip()
-    flooding = linhas[2].strip()
+    chunks = int(linhas[1].strip())
+    flooding = int(linhas[2].strip())
 
 # Função para iniciar o cliente de um nó em uma thread separada
 def start_node_udp_socket(node):
@@ -57,21 +57,7 @@ for node_id in node_ids:
         print(f"Nó com ID {node_id} não encontrado.")
 
 
-# current_node = nodes[id]
-
-# current_node.create_udp_socket()
-# # nodes[id].create_client()
-
-# with open('./image.png.p2p', 'r') as arquivo:
-#     linhas = arquivo.readlines()
-
-#     file_wanted = linhas[0].strip()
-#     chunks = linhas[1].strip()
-#     flooding = linhas[2].strip()
-
-#     file_chunks = []
-#     for i in range(chunks):
-#         chunk_wanted = f"{file_wanted}.ch{i}"
-
-#         for known_node in current_node.known_nodes:
-#             current_node.create_client(known_node.host, known_node.port, chunk_wanted, flooding)
+search_node = nodes[search_node_id]
+search_node.create_udp_socket()
+for known_node in search_node.known_nodes:
+    search_node.create_client(search_node.host, search_node.port, known_node.host, known_node.port, file_wanted, flooding)

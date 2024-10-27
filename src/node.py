@@ -20,7 +20,7 @@ class Node:
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         server_socket.bind((self.host, int(self.port)))
         # s.listen()
-        print(f"Node {self.id} listening in {self.host}:{self.port}")
+        print(f"Node {self.id} listening UDP in {self.host}:{self.port}")
         # conn, addr = s.accept()
         # print(f"Connected by {addr}")
 
@@ -33,8 +33,7 @@ class Node:
         while True:
             message, address = server_socket.recvfrom(1024)
             message = message.upper()
-            print(f"Received: {message!r}")
-            print(f"From: {address}")
+            print(f"Node {self.id}, with {self.host}:{self.port}, received: {message!r} from {address}")
 
             # Converte os bytes para string
             data_str = message.decode('utf-8')
@@ -43,6 +42,9 @@ class Node:
             file_wanted = data_dict['FILE_WANTED']
             original_address = data_dict['ADDRES']
             flooding = data_dict['FLOODING']
+
+            print(original_address)
+            print(flooding)
 
             matching_files = self.look_for_chunks(file_wanted)
 
@@ -54,12 +56,12 @@ class Node:
                     'transfer_rate': self.transfer_rate
                 }
                 message_json = json.dumps(message_sent)
-                server_socket.sendto(message_json.encode('utf-8'), original_address)
+                server_socket.sendto(message_json.encode('utf-8'), address=original_address)
 
             # Caso o flooding seja maior que 0, criar conexão UDP pra procurar nos known_nodes se tem aquele arquivo
             if flooding > 0:
                 for node in self.known_nodes:
-                    node.create_client(original_address.host, original_address.port, file_wanted, flooding-1)
+                    self.create_client(original_address[0], original_address[1], node.host, node.port, file_wanted, flooding-1)
 
             # with conn:
             #     while True:
@@ -77,32 +79,36 @@ class Node:
         return matching_files
 
 
-    def create_client(self, other_host, other_port, file_wanted, flooding):
+    def create_client(self, original_host, original_port, other_host, other_port, file_wanted, flooding):
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         client_socket.settimeout(5.0)
         start = time.time()
 
         message_sent = {
             'file_wanted': file_wanted,
-            'addres': (self.host, self.port),
+            'addres': (original_host, original_port),
             'flooding': flooding
         }
         message_json = json.dumps(message_sent)
 
-        for pings in range(10):
-            client_socket.sendto(message_json.encode('utf-8'), (other_host, int(other_port)))
+        # Verifica se a requisição não está sendo feita para o nodo original
+        if original_port != other_port and original_host != original_port:
+            # tenta 10 vezes
+            for pings in range(10):
+                print(f'Ping {pings}: Host {self.id} - {self.host}:{self.port} sending message to {other_host}:{other_port}')
+                client_socket.sendto(message_json.encode('utf-8'), (other_host, int(other_port)))
 
-            try:
-                data, server = client_socket.recvfrom(1024)
-                end = time.time()
-                elapsed = end - start
-                print(f'{data} {pings} {elapsed}')
-                break
-            except socket.timeout:
-                print('REQUEST TIMED OUT')
-            finally:
-                client_socket.close()
-        
+                try:
+                    data, server = client_socket.recvfrom(1024)
+                    end = time.time()
+                    elapsed = end - start
+                    print(f'{data} {pings} {elapsed}')
+                    break
+                except socket.timeout:
+                    print('REQUEST TIMED OUT')
+                finally:
+                    client_socket.close()
+                    break
             
         
         # try:
