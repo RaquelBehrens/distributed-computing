@@ -1,5 +1,6 @@
 import sys
 import threading
+import json
 from src.node import Node
 from src.sort import merge_sort_nodes
 
@@ -25,7 +26,7 @@ nodes = []
 with open('./config.txt', 'r') as arquivo:
     for line in arquivo:
         id, host, port, transfer_rate = line.split(' ')
-        node = Node(id=id[:-1], host=host[:-1], port=port[:-1], transfer_rate=transfer_rate)
+        node = Node(id=id[:-1], host=host[:-1], port=port[:-1], transfer_rate=transfer_rate.replace('\n',''))
         nodes.append(node)
     merge_sort_nodes(nodes)
 
@@ -59,5 +60,13 @@ for node_id in node_ids:
 
 search_node = nodes[search_node_id]
 search_node.create_udp_socket()
+
+message_sent = {
+    'file_wanted': file_wanted,
+    'addres': (search_node.host, search_node.port),
+    'flooding': flooding
+}
+message_json = json.dumps(message_sent)
+
 for known_node in search_node.known_nodes:
-    search_node.create_client(search_node.host, search_node.port, known_node.host, known_node.port, file_wanted, flooding)
+    search_node.create_client(search_node.host, search_node.port, known_node.host, known_node.port, message_json)
