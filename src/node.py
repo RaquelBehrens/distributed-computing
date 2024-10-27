@@ -73,9 +73,9 @@ class Node:
 
 
     def look_for_chunks(self, file_wanted):
-        current_directory = os.path.dirname(os.path.abspath(__file__))
+        current_directory = f"{os.path.dirname(os.path.abspath(__file__))}/../nodes/{self.id}"
         files_in_directory = os.listdir(current_directory)
-        matching_files = [f for f in files_in_directory if f.startswith(file_wanted)]
+        matching_files = [f for f in files_in_directory if f.startswith(file_wanted.lower())]
         return matching_files
 
 
