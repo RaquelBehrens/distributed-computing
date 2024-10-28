@@ -164,11 +164,10 @@ class Node:
                 sender_address = data_dict['ADDRESS']
                 transfer_rate =  data_dict['TRANSFER_RATE']
                 
-
                 max_attempts = 10
                 start = time.time()
                 
-                # Tenta 10 vezes
+                # Tenta conexão com o socket TCP 10 vezes, pois pode ser que o socket ainda não esteja aberto
                 for pings in range(max_attempts):
                     print(f"TRYING TO CONNECT TO TCP Ping {pings}: Node {self.id} is creating TCP client to {sender_address}")
                     try:
@@ -216,7 +215,7 @@ class Node:
         max_attempts = 5
         start = time.time()
         
-        # Tenta 10 vezes
+        # Tenta 5 vezes enviar mensagem ao socket UDP
         for pings in range(max_attempts):
             print(f'TRYING TO SEND UDP Ping {pings}: Host {self.id} - {self.host}:{self.port} sending message {message_sent} to {other_host}:{other_port}')
             client_socket.sendto(message_sent.encode('utf-8'), (other_host, int(other_port)))
@@ -292,12 +291,13 @@ class Node:
             if self.chunks_found:  # Só entra quando encontrar o primeiro arquivo
                 if first_search:
                     print(f"Node {self.id} received first file and is waiting 10 seconds to decide")
-                    time.sleep(2)  # Espera 10 segundos na primeira vez
+                    time.sleep(10)  # Espera 10 segundos na primeira vez
                     first_search = False
 
                 is_possible = True
                 address_search = {}
 
+                # Decide qual chunk de qual endereço a melhor opção
                 for part in range(num_chunks_required):
                     if (part in self.chunks_found):
                         for i, chunk_info in enumerate(self.chunks_found[part]):

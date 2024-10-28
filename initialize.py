@@ -53,10 +53,8 @@ for node in nodes:
 
 # Recebe e procura o arquivo
 while True:
-    # if (len(nodes) == 1):
-    #     print("Digite o caminho do arquivo desejado para começar a busca ou [sair] para encerrar o programa.")
-    # else:
-    #     print("Digite o nó que vai procurar o arquivo e o caminho do arquivo desejado para começar a busca ou [sair] para encerrar o programa.")
+    print("Digite 'sair' para interromper a execução, ou então digite o nó que vai procurar o arquivo e o arquivo .p2p desejado!")
+    print("Exemplo: se quero começar a busca pelo nó 0, e o arquivo .p2p é o image.png.p2p, digito: '0 image.png.p2p'")
 
     command = input().split()
     if (command[0] == 'sair'):
@@ -64,6 +62,7 @@ while True:
         sys.exit(0)
     else:
         if (command):
+            # lê comando
             if (len(command) == 2):
                 search_node_id = command[0]
                 for node in nodes:
@@ -79,7 +78,8 @@ while True:
                 file_wanted = linhas[0].strip()
                 chunks = int(linhas[1].strip())
                 flooding = int(linhas[2].strip())
-    
+
+            # Informa os chunks que já estão no nodo    
             search_node.configure_known_chunks(file_wanted)
             message_sent = {
                 'type_client': 'searching_file',
@@ -90,7 +90,9 @@ while True:
             }
             message_json = json.dumps(message_sent)
 
+            # Começa a busca pelos nodos conhecidos pelo nodo inicial
             for known_node in search_node.known_nodes:
                 search_node.create_udp_client(known_node.host, known_node.port, message_json)
 
+            # Cria thread para verificar arquivos recebidos, decidir de onde vai pegar os arquivos, fazer as conexões TCP, e juntar os arquivos encontrados
             threading.Thread(target=search_node.search_chunks, args=(chunks, file_wanted, TIMEOUT)).start()
