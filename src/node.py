@@ -3,6 +3,7 @@ import os
 import socket
 import threading
 import time
+import math
 
 
 class Node:
@@ -18,20 +19,26 @@ class Node:
     def add_known_node(self, known_nodes):
         self.known_nodes += known_nodes
 
+    def configure_known_chunks(self, file_wanted):
+        # Adicionar os chunks atuais na lista.
+        current_files = self.look_for_chunks(file_wanted)
+        for chunk in current_files:
+            chunk_part = int(chunk[len(file_wanted)+3:])
+            # Taxa de transferência infinita simbolizando que o arquivo está presente.
+            new_chunk = [chunk.upper(), [self.host, self.port], math.inf]
+            if chunk_part in self.chunks_found:
+                if (new_chunk not in self.chunks_found[chunk_part]):
+                    self.chunks_found[chunk_part].append(new_chunk)
+            else:
+                self.chunks_found[chunk_part] = [new_chunk]
+
     def create_udp_socket(self, timeout, num_chunks_required):
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         server_socket.bind((self.host, int(self.port)))
-        # s.listen()
 
         server_socket.settimeout(timeout)
         print(f"Node {self.id} listening UDP in {self.host}:{self.port} for {timeout} seconds.")
-        # conn, addr = s.accept()
-        # print(f"Connected by {addr}")
 
-        # while True:
-        #     message, address = socket.recvfrom(1024)
-        #     message = message.upper()
-        # threading.Thread(target=self.handle_udp_client, args=(server_socket, )).start()
         self.handle_udp_client(server_socket, num_chunks_required)
 
     def handle_udp_client(self, server_socket, num_chunks_required):
@@ -99,14 +106,10 @@ class Node:
                     sender_address = data_dict['ADDRESS']
                     transfer_rate = data_dict['TRANSFER_RATE']
 
-                    # current_chunks = self.look_for_chunks(file_wanted)
-                    # new_chunk = [files_found, sender_address, transfer_rate]
-                    # if new_chunk not in self.chunks_found:
-                        # self.chunks_found.append(new_chunk)
                     for chunk in files_found:
                         # Nome do arquivo + .ch
                         chunk_part = int(chunk[len(file_wanted)+3:])
-                        new_chunk = [chunk, sender_address, transfer_rate]
+                        new_chunk = [chunk, sender_address, float(transfer_rate)]
                         if chunk_part in self.chunks_found:
                             if (new_chunk not in self.chunks_found[chunk_part]):
                                 self.chunks_found[chunk_part].append(new_chunk)
@@ -131,14 +134,17 @@ class Node:
                                         best_option = i
                                         best_address = chunk_info[1]
                                         best_rate = chunk_info[2]
-                            address_search[self.chunks_found[part][best_option][0]] = [best_address, best_rate]
+                            address_search[self.chunks_found[part][best_option][0].lower()] = [best_address, best_rate]
                         else:
                             is_possible = False
                             break
 
                     if is_possible:
                         for key, value in address_search.items():
-                            print(f"Busca de arquivo {key} em {value[0][0]}:{value[0][1]} com taxa de {value[1]} bytes/s.")
+                            if (value[1] == math.inf):
+                                print(f"Nodo {self.id} já possuia arquivo {key} previamente.")
+                            else:
+                                print(f"Busca de arquivo {key} em {value[0][0]}:{value[0][1]} com taxa de {value[1]} bytes/s.")
                     else:
                         print("Não foi possível coletar todos os chunks do arquivo.")
 
@@ -179,12 +185,3 @@ class Node:
 
                 client_socket.close()
                 break
-            
-        
-        # try:
-        #     s.connect((other_host, int(other_port)))
-        #     s.sendall(b"Hello, world")
-        #     data = s.recv(1024)
-        #     print(f"Received {data!r}")
-        # except ConnectionRefusedError:
-        #     print(f"Connection refused for {self.host}:{self.port}")

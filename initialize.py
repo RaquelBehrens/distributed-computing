@@ -62,6 +62,7 @@ for node_id in node_ids:
 
 
 search_node = nodes[search_node_id]
+search_node.configure_known_chunks(file_wanted)
 # search_node.create_udp_socket()
 threading.Thread(target=start_node_udp_socket, args=(search_node, timeout, chunks,)).start()
 
