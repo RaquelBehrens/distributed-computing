@@ -1,7 +1,6 @@
 import json
 import os
 import socket
-import threading
 import time
 import math
 
@@ -15,6 +14,7 @@ class Node:
         self.known_nodes = []
 
         self.chunks_found = {}
+        self.received_files = 0
 
     def configure_node(self, host, port, transfer_rate):
         self.host = host
@@ -37,19 +37,19 @@ class Node:
             else:
                 self.chunks_found[chunk_part] = [new_chunk]
 
-    def create_udp_socket(self, timeout):
+    def create_udp_socket(self):
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         server_socket.bind((self.host, int(self.port)))
-        server_socket.settimeout(timeout)
-        print(f"Node {self.id} listening UDP in {self.host}:{self.port} for {timeout} seconds.")
+        print(f"Node {self.id} listening UDP in {self.host}:{self.port}.")
         self.handle_udp_client(server_socket)
 
     def create_tcp_socket(self, file):
+        timeout = 15
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.bind((self.host, int(self.port)))
         server_socket.listen()
-        server_socket.settimeout(15)
-        print(f"Node {self.id} listening TCP on {self.host}:{self.port}")
+        server_socket.settimeout(timeout)
+        print(f"Node {self.id} listening TCP on {self.host}:{self.port} for {timeout} seconds")
 
         try:
             print(f"Node {self.id} TCP is waiting for connection")
@@ -78,107 +78,104 @@ class Node:
                             break  # Sai do loop se não houver mais dados
                         file.write(data)  # Escreve os dados recebidos no arquivo
 
+            self.received_files += 1
             print(f"File received and saved to {full_file_path}")
         except Exception as e:
             print(f"Error during file reception from {addr}: {e}")
 
     def handle_udp_client(self, server_socket):
         while True:
-            try:
-                message, address = server_socket.recvfrom(1024)
-                message = message.upper()
-                print(f"Node {self.id}, with {self.host}:{self.port}, received: {message!r} from {address}")
+            message, address = server_socket.recvfrom(1024)
+            message = message.upper()
+            print(f"Node {self.id}, with {self.host}:{self.port}, received: {message!r} from {address}")
 
-                # Envia confirmação de recebimento de mensagem ao sender
-                ack_message = json.dumps({'status': 'received'})
-                server_socket.sendto(ack_message.encode('utf-8'), address)
+            # Envia confirmação de recebimento de mensagem ao sender
+            ack_message = json.dumps({'status': 'received'})
+            server_socket.sendto(ack_message.encode('utf-8'), address)
 
-                # Converte os bytes para string
-                data_str = message.decode('utf-8')
-                data_dict = json.loads(data_str)
+            # Converte os bytes para string
+            data_str = message.decode('utf-8')
+            data_dict = json.loads(data_str)
 
-                type = data_dict['TYPE_CLIENT']
-                print(f"Node {self.id} received from {address} type of connection: {type}")
+            type = data_dict['TYPE_CLIENT']
+            print(f"Node {self.id} received from {address} type of connection: {type}")
 
-                if type == 'SEARCHING_FILE':
-                    file_wanted = data_dict['FILE_WANTED']
-                    sender_address = data_dict['ADDRESS']
-                    original_address = data_dict['ORIGINAL_ADDRESS']
-                    flooding = data_dict['FLOODING']
+            if type == 'SEARCHING_FILE':
+                file_wanted = data_dict['FILE_WANTED']
+                sender_address = data_dict['ADDRESS']
+                original_address = data_dict['ORIGINAL_ADDRESS']
+                flooding = data_dict['FLOODING']
 
-                    print(f"Address: {original_address}")
-                    print(f"Remaining flooding: {flooding}")
+                print(f"Address: {original_address}")
+                print(f"Remaining flooding: {flooding}")
 
-                    matching_files = self.look_for_chunks(file_wanted)
+                matching_files = self.look_for_chunks(file_wanted)
 
-                    # Caso matching_files seja uma lista não vazia, responder com a taxa de transferência
-                    if matching_files:
-                        message_sent = {
-                            'type_client': 'found_file',
-                            'file_wanted': file_wanted,
-                            'files_found': matching_files,
-                            'address': (self.host, self.port),
-                            'transfer_rate': self.transfer_rate
-                        }
-                        message_json = json.dumps(message_sent)
-                        print(f"Node {self.id} is sending files found {matching_files} to {original_address[0]}:{original_address[1]}")
-                        self.create_udp_client(original_address[0], int(original_address[1]), message_json)
+                # Caso matching_files seja uma lista não vazia, responder com a taxa de transferência
+                if matching_files:
+                    message_sent = {
+                        'type_client': 'found_file',
+                        'file_wanted': file_wanted,
+                        'files_found': matching_files,
+                        'address': (self.host, self.port),
+                        'transfer_rate': self.transfer_rate
+                    }
+                    message_json = json.dumps(message_sent)
+                    print(f"Node {self.id} is sending files found {matching_files} to {original_address[0]}:{original_address[1]}")
+                    self.create_udp_client(original_address[0], int(original_address[1]), message_json)
 
-                    # Caso o flooding seja maior que 0, criar conexão UDP pra procurar nos known_nodes se tem aquele arquivo
-                    if flooding > 0:
-                        message_sent = {
-                            'type_client': 'searching_file',
-                            'file_wanted': file_wanted,
-                            'address': (self.host, self.port),
-                            'original_address': (original_address[0], original_address[1]),
-                            'flooding': flooding-1
-                        }
-                        message_json = json.dumps(message_sent)
+                # Caso o flooding seja maior que 0, criar conexão UDP pra procurar nos known_nodes se tem aquele arquivo
+                if flooding > 0:
+                    message_sent = {
+                        'type_client': 'searching_file',
+                        'file_wanted': file_wanted,
+                        'address': (self.host, self.port),
+                        'original_address': (original_address[0], original_address[1]),
+                        'flooding': flooding-1
+                    }
+                    message_json = json.dumps(message_sent)
 
-                        for node in self.known_nodes:
-                            # Verifica se a requisição não está sendo feita para o nodo original ou para o nodo requisitor
-                            if (node.host != original_address[0] or node.port != original_address[1]) and \
-                                (node.host != sender_address[0] or node.port != sender_address[1]):
-                                print(f"Node {self.id} is sending search to {node.host}:{node.port}")
-                                self.create_udp_client(node.host, node.port, message_json)
+                    for node in self.known_nodes:
+                        # Verifica se a requisição não está sendo feita para o nodo original ou para o nodo requisitor
+                        if (node.host != original_address[0] or node.port != original_address[1]) and \
+                            (node.host != sender_address[0] or node.port != sender_address[1]):
+                            print(f"Node {self.id} is sending search to {node.host}:{node.port}")
+                            self.create_udp_client(node.host, node.port, message_json)
+                else:
+                    print("Flooding ended.")
+
+            elif type == 'FOUND_FILE':                    
+                # Tratamento dos arquivos/chunks recebidos
+                file_wanted = data_dict['FILE_WANTED']
+                files_found = data_dict['FILES_FOUND']
+                sender_address = data_dict['ADDRESS']
+                transfer_rate = data_dict['TRANSFER_RATE']
+
+                print(f"Node {self.id} is adding {file_wanted} to chunks_found")
+                for chunk in files_found:
+                    # Nome do arquivo + .ch
+                    chunk_part = int(chunk[len(file_wanted)+3:])
+                    new_chunk = [chunk, sender_address, float(transfer_rate)]
+                    if chunk_part in self.chunks_found:
+                        if (new_chunk not in self.chunks_found[chunk_part]):
+                            self.chunks_found[chunk_part].append(new_chunk)
                     else:
-                        print("Flooding ended.")
+                        self.chunks_found[chunk_part] = [new_chunk]
 
-                elif type == 'FOUND_FILE':                    
-                    # Tratamento dos arquivos/chunks recebidos
-                    file_wanted = data_dict['FILE_WANTED']
-                    files_found = data_dict['FILES_FOUND']
-                    sender_address = data_dict['ADDRESS']
-                    transfer_rate = data_dict['TRANSFER_RATE']
-
-                    print(f"Node {self.id} is adding {file_wanted} to chunks_found")
-                    for chunk in files_found:
-                        # Nome do arquivo + .ch
-                        chunk_part = int(chunk[len(file_wanted)+3:])
-                        new_chunk = [chunk, sender_address, float(transfer_rate)]
-                        if chunk_part in self.chunks_found:
-                            if (new_chunk not in self.chunks_found[chunk_part]):
-                                self.chunks_found[chunk_part].append(new_chunk)
-                        else:
-                            self.chunks_found[chunk_part] = [new_chunk]
-
-                elif type == 'SEND_FILE':
-                    file = data_dict['FILE']
-                    sender_address = data_dict['ADDRESS']
-                    transfer_rate =  data_dict['TRANSFER_RATE']
-                    
-                    while True:
-                        time.sleep(5)
-                        print(f"Node {self.id} is creating TCP client to {sender_address}")
-                        try:
-                            self.create_tcp_client(sender_address[0], sender_address[1], file, transfer_rate)
-                        except ConnectionRefusedError as e:
-                            print(e)
-                        finally:
-                            break
-            
-            except socket.timeout:
-                print("Exceeded searching files time limit")
+            elif type == 'SEND_FILE':
+                file = data_dict['FILE']
+                sender_address = data_dict['ADDRESS']
+                transfer_rate =  data_dict['TRANSFER_RATE']
+                
+                while True:
+                    time.sleep(5)
+                    print(f"Node {self.id} is creating TCP client to {sender_address}")
+                    try:
+                        self.create_tcp_client(sender_address[0], sender_address[1], file, transfer_rate)
+                    except ConnectionRefusedError as e:
+                        print(f"TCP Connection refused between node {self.id} and {sender_address[0]}:{sender_address[1]}: {e}")
+                    finally:
+                        break
 
     def look_for_chunks(self, file_wanted):
         current_directory = f"{os.path.dirname(os.path.abspath(__file__))}/../nodes/{self.id}"
@@ -258,50 +255,78 @@ class Node:
 
             print("File sent successfully")
         except IOError as e:
-            print("Error reading the file.: {e}")
+            print(f"Error reading the file: {e}")
         except Exception as e:
             print(f"Error during file transmission: {e}")
         finally:
             client_socket.close()
 
     # Função para busca de chunks em uma thread separada
-    def search_chunks(self, num_chunks_required):
+    def search_chunks(self, num_chunks_required, timeout=120):
+        start_time = time.time()
         first_search = True
         print(f"Node {self.id} is starting to investigate received files")
-
         print(f"Node {self.id} is waiting for files")
-        if self.chunks_found:  # Só entra quando encontrar o primeiro arquivo
-            if first_search:
-                print(f"Node {self.id} received first file and is waiting 10 seconds to decide")
-                time.sleep(10)  # Espera 10 segundos na primeira vez
-                first_search = False
 
-            is_possible = True
-            address_search = {}
+        result_timeout = False
+        chunk_status = [0] * num_chunks_required
 
-            for part in range(num_chunks_required):
-                if (part in self.chunks_found):
-                    for i, chunk_info in enumerate(self.chunks_found[part]):
-                        if (i == 0):
-                            best_option = i
-                            best_address = chunk_info[1]
-                            best_rate = chunk_info[2]
-                        else:
-                            if (chunk_info[2] > best_rate):
+        while self.received_files < num_chunks_required:
+            # Verifica se o tempo decorrido excedeu o timeout
+            elapsed_time = time.time() - start_time
+            if elapsed_time > timeout:
+                print(f"Timeout reached. Node {self.id} stopped searching.")
+                result_timeout = True
+                break
+
+            print(f"Received files = {self.received_files}")
+            print(num_chunks_required)
+            if self.chunks_found:  # Só entra quando encontrar o primeiro arquivo
+                if first_search:
+                    print(f"Node {self.id} received first file and is waiting 10 seconds to decide")
+                    time.sleep(2)  # Espera 10 segundos na primeira vez
+                    first_search = False
+
+                is_possible = True
+                address_search = {}
+
+                for part in range(num_chunks_required):
+                    if (part in self.chunks_found):
+                        for i, chunk_info in enumerate(self.chunks_found[part]):
+                            if (i == 0):
                                 best_option = i
                                 best_address = chunk_info[1]
                                 best_rate = chunk_info[2]
-                    address_search[self.chunks_found[part][best_option][0].lower()] = [best_address, best_rate]
-                else:
-                    is_possible = False
-                    break
-
-            if is_possible:
-                for key, value in address_search.items():
-                    if value[1] == math.inf:
-                        print(f"Node {self.id} already had {key} previosly.")
+                            else:
+                                if (chunk_info[2] > best_rate):
+                                    best_option = i
+                                    best_address = chunk_info[1]
+                                    best_rate = chunk_info[2]
+                        address_search[self.chunks_found[part][best_option][0].lower()] = [best_address, best_rate]
                     else:
-                        print(f"Searching file {key} in {value[0][0]}:{value[0][1]} with transfer rate {value[1]} bytes/s.")
-                        self.transfer_file(key, value)
-            else:
-                print("It was not possible to collect all file's chunks.")
+                        is_possible = False
+                        break
+
+                if is_possible:
+                    for key, value in address_search.items():
+                        if value[1] == math.inf:
+                            print(f"Node {self.id} already had {key} previosly.")
+                            chunk = int(key[-1])
+                            chunk_status[chunk] = 1
+                        else:
+                            print(f"Searching file {key} in {value[0][0]}:{value[0][1]} with transfer rate {value[1]} bytes/s.")
+                            self.transfer_file(key, value)
+                else:
+                    print("It was not possible to collect all file's chunks.")
+
+            if sum(chunk_status) >= num_chunks_required:
+                break
+        
+        if result_timeout and (sum(chunk_status) + self.received_files) < num_chunks_required :
+            print("ERROR: Did not find all chunks.")
+        else:
+            print("SUCCESS: Found all chunks!")
+            self.merge_files()
+    
+    def merge_files(self):
+        print("Iniciando junção de arquivos")

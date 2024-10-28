@@ -47,7 +47,7 @@ with open('./image.png.p2p', 'r') as arquivo:
     flooding = int(linhas[2].strip())
 
 # Essa variável representará o tempo de busca no nodo
-timeout = 120
+TIMEOUT = 2
 
 # Pergunta o ID do nó que vai procurar o arquivo
 search_node_id = input("Digite o nó que vai procurar o arquivo: ")
@@ -57,15 +57,15 @@ except ValueError:
     print("O nó precisa ser representado por um inteiro.")
 
 # Função para iniciar o cliente de um nó em uma thread separada
-def start_node_udp_socket(node, timeout):
-    node.create_udp_socket(timeout)
+def start_node_udp_socket(node):
+    node.create_udp_socket()
 
 # Cria e inicia uma thread para cada ID de nó recebido
 search_node = None
 for node in nodes:
     if (node.id == search_node_id):
         search_node = node
-    thread = threading.Thread(target=start_node_udp_socket, args=(node, timeout))
+    thread = threading.Thread(target=start_node_udp_socket, args=(node, ))
     thread.start()
 
 # Procura o arquivo
@@ -84,4 +84,4 @@ if search_node != None:
     for known_node in search_node.known_nodes:
         search_node.create_udp_client(known_node.host, known_node.port, message_json)
 
-    threading.Thread(target=search_node.search_chunks, args=(chunks,)).start()
+    threading.Thread(target=search_node.search_chunks, args=(chunks, TIMEOUT)).start()
