@@ -154,13 +154,17 @@ class Node:
                 print(f"Node {self.id} is adding {file_wanted} to chunks_found")
                 for chunk in files_found:
                     # Nome do arquivo + .ch
-                    chunk_part = int(chunk[len(file_wanted)+3:])
-                    new_chunk = [chunk, sender_address, float(transfer_rate)]
-                    if chunk_part in self.chunks_found:
-                        if (new_chunk not in self.chunks_found[chunk_part]):
-                            self.chunks_found[chunk_part].append(new_chunk)
-                    else:
-                        self.chunks_found[chunk_part] = [new_chunk]
+                    extension = chunk[len(file_wanted):-1]
+                    
+                    # checa os arquivos que são .ch (chunks) 
+                    if extension == '.CH':
+                        chunk_part = int(chunk[len(file_wanted)+3:])
+                        new_chunk = [chunk, sender_address, float(transfer_rate)]
+                        if chunk_part in self.chunks_found:
+                            if (new_chunk not in self.chunks_found[chunk_part]):
+                                self.chunks_found[chunk_part].append(new_chunk)
+                        else:
+                            self.chunks_found[chunk_part] = [new_chunk]
 
             elif type == 'SEND_FILE':
                 file = data_dict['FILE']
@@ -260,7 +264,7 @@ class Node:
             with open(file_path, 'rb') as file:
                 print(f"Node {self.id} is reading file {file_path}")
                 while chunk := file.read(chunk_size):  # Lê o arquivo em blocos de 1024 bytes
-                    print(f"Sent a chunk of {chunk_size} bytes to {original_host}:{original_port}")
+                    print(f"Node {self.id} sent a chunk of {chunk_size} bytes to {original_host}:{original_port}")
                     client_socket.sendall(chunk)
                     time.sleep(time_per_chunk)  # Pausa para limitar a taxa de transferência
 
