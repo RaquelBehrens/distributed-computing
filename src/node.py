@@ -245,7 +245,7 @@ class Node:
 
         client_socket.close()
 
-    def create_tcp_client(self, original_host, original_port, file_path, transfer_rate):
+    def create_tcp_client(self, original_host, original_port, file_name, transfer_rate):
         # Cria o socket TCP do cliente
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         PRINT_LOGS and print(f"Node {self.id} is trying to connect to TCP {original_host}:{original_port}")
@@ -254,10 +254,10 @@ class Node:
 
         # Define diretório do arquivo
         save_directory = f"{os.path.dirname(os.path.abspath(__file__))}/../nodes/{self.id}"
-        file_path = os.path.join(save_directory, file_path.lower())
+        file_path = os.path.join(save_directory, file_name.lower())
 
         # Calcula o tempo de espera necessário para cada chunk de 1024 bytes
-        chunk_size = 1024
+        chunk_size = int(transfer_rate)
         time_per_chunk = chunk_size / transfer_rate  # Tempo necessário para enviar cada chunk
 
         PRINT_LOGS and print(f"Node {self.id} will try to send chunks")
@@ -265,10 +265,18 @@ class Node:
             PRINT_LOGS and print(f"Node {self.id} is opening file {file_path}")
             with open(file_path, 'rb') as file:
                 PRINT_LOGS and print(f"Node {self.id} is reading file {file_path}")
+                total_size = os.path.getsize(file_path)
+                current_size = chunk_size
                 while chunk := file.read(chunk_size):  # Lê o arquivo em blocos de 1024 bytes
-                    PRINT_LOGS and print(f"Node {self.id} sent a chunk of {chunk_size} bytes to {original_host}:{original_port}")
+                    PRINT_LOGS and  print(f"Node {self.id} sent a chunk of {chunk_size} bytes to {original_host}:{original_port}")
+                    print(f"Chunk {file_name} {current_size*100/total_size:.2f}% transferred.")
                     client_socket.sendall(chunk)
                     time.sleep(time_per_chunk)  # Pausa para limitar a taxa de transferência
+
+                    if (current_size+chunk_size <= total_size):
+                        current_size += chunk_size
+                    else:
+                        current_size = total_size 
 
             PRINT_LOGS and print("File sent successfully")
         except IOError as e:
@@ -335,10 +343,11 @@ class Node:
                         print(f"PERCENTAGE OF THE FILE ALREADY TRANSFERRED: {(self.transfered_files/num_chunks_required)*100}%")
                 else:
                     PRINT_LOGS and print("It was not possible to collect all file's chunks.")
-        
-        print(f"PERCENTAGE OF THE FILE ALREADY TRANSFERRED: {(self.transfered_files/num_chunks_required)*100}%")
 
         matching_files = self.look_for_chunks(file_wanted)
+
+        print(f"PERCENTAGE OF THE FILE ALREADY TRANSFERRED: {(len(matching_files)/num_chunks_required)*100}%")
+
         if result_timeout and len(matching_files) < num_chunks_required :
             print("TIMEOUT ERROR: Did not find all chunks.")
         else:
