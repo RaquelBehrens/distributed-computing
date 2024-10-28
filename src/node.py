@@ -3,6 +3,7 @@ import os
 import socket
 import time
 import math
+import re
 
 
 class Node:
@@ -12,9 +13,7 @@ class Node:
         self.port = None
         self.transfer_rate = None
         self.known_nodes = []
-
         self.chunks_found = {}
-        self.received_files = 0
 
     def configure_node(self, host, port, transfer_rate):
         self.host = host
@@ -78,7 +77,6 @@ class Node:
                             break  # Sai do loop se não houver mais dados
                         file.write(data)  # Escreve os dados recebidos no arquivo
 
-            self.received_files += 1
             print(f"File received and saved to {full_file_path}")
         except Exception as e:
             print(f"Error during file reception from {addr}: {e}")
@@ -151,20 +149,15 @@ class Node:
                 sender_address = data_dict['ADDRESS']
                 transfer_rate = data_dict['TRANSFER_RATE']
 
-                print(f"Node {self.id} is adding {file_wanted} to chunks_found")
                 for chunk in files_found:
                     # Nome do arquivo + .ch
-                    extension = chunk[len(file_wanted):-1]
-                    
-                    # checa os arquivos que são .ch (chunks) 
-                    if extension == '.CH':
-                        chunk_part = int(chunk[len(file_wanted)+3:])
-                        new_chunk = [chunk, sender_address, float(transfer_rate)]
-                        if chunk_part in self.chunks_found:
-                            if (new_chunk not in self.chunks_found[chunk_part]):
-                                self.chunks_found[chunk_part].append(new_chunk)
-                        else:
-                            self.chunks_found[chunk_part] = [new_chunk]
+                    chunk_part = int(chunk[len(file_wanted)+3:])
+                    new_chunk = [chunk, sender_address, float(transfer_rate)]
+                    if chunk_part in self.chunks_found:
+                        if (new_chunk not in self.chunks_found[chunk_part]):
+                            self.chunks_found[chunk_part].append(new_chunk)
+                    else:
+                        self.chunks_found[chunk_part] = [new_chunk]
 
             elif type == 'SEND_FILE':
                 file = data_dict['FILE']
@@ -195,9 +188,13 @@ class Node:
     def look_for_chunks(self, file_wanted):
         current_directory = f"{os.path.dirname(os.path.abspath(__file__))}/../nodes/{self.id}"
         files_in_directory = os.listdir(current_directory)
-        matching_files = [f for f in files_in_directory if f.startswith(file_wanted.lower())]
+
+        # Expressão regular para verificar se o arquivo termina com .ch seguido de um número
+        pattern = re.compile(rf"^{file_wanted.lower()}\.ch\d+$")
+        
+        matching_files = [f for f in files_in_directory if pattern.match(f.lower())]
         return matching_files
-    
+        
     def transfer_file(self, file, transfer_node):        
         # Informar ao nó que vai transferir, que a conexão TCP foi aberta
         message_sent = {
@@ -216,7 +213,7 @@ class Node:
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         client_socket.settimeout(5.0)
 
-        max_attempts = 10
+        max_attempts = 5
         start = time.time()
         
         # Tenta 10 vezes
@@ -232,16 +229,15 @@ class Node:
                     break
             except socket.timeout:
                 print(f'REQUEST TIMED OUT FOR CLIENT {self.id} - no acknowledgment received from {other_host}:{other_port}')    
-            finally:
-                if pings == max_attempts - 1:
-                    print("Max attempts reached, no acknowledgment received.")
+            
+        if pings == max_attempts - 1:
+            print("Max attempts reached, no acknowledgment received.")
 
-                end = time.time()
-                elapsed = end - start
-                print(f'Pings: {pings}, Elapsed: {elapsed}')
+        end = time.time()
+        elapsed = end - start
+        print(f'Pings: {pings}, Elapsed: {elapsed}')
 
-                client_socket.close()
-                break
+        client_socket.close()
 
     def create_tcp_client(self, original_host, original_port, file_path, transfer_rate):
         # Cria o socket TCP do cliente
@@ -284,9 +280,8 @@ class Node:
         print(f"Node {self.id} is waiting for files")
 
         result_timeout = False
-        chunk_status = [0] * num_chunks_required
 
-        while self.received_files < num_chunks_required:
+        while len(self.look_for_chunks(file_wanted)) < num_chunks_required:
             # Verifica se o tempo decorrido excedeu o timeout
             elapsed_time = time.time() - start_time
             if elapsed_time > timeout:
@@ -294,8 +289,6 @@ class Node:
                 result_timeout = True
                 break
 
-            print(f"Received files = {self.received_files}")
-            print(num_chunks_required)
             if self.chunks_found:  # Só entra quando encontrar o primeiro arquivo
                 if first_search:
                     print(f"Node {self.id} received first file and is waiting 10 seconds to decide")
@@ -323,21 +316,18 @@ class Node:
                         break
 
                 if is_possible:
+                    print(address_search.items())
                     for key, value in address_search.items():
                         if value[1] == math.inf:
                             print(f"Node {self.id} already had {key} previosly.")
-                            chunk = int(key[-1])
-                            chunk_status[chunk] = 1
                         else:
                             print(f"Searching file {key} in {value[0][0]}:{value[0][1]} with transfer rate {value[1]} bytes/s.")
                             self.transfer_file(key, value)
                 else:
                     print("It was not possible to collect all file's chunks.")
-
-            if sum(chunk_status) >= num_chunks_required:
-                break
         
-        if result_timeout and (sum(chunk_status) + self.received_files) < num_chunks_required :
+        matching_files = self.look_for_chunks(file_wanted)
+        if result_timeout and len(matching_files) < num_chunks_required :
             print("ERROR: Did not find all chunks.")
         else:
             print("SUCCESS: Found all chunks!")

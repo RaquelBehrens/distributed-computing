@@ -2,7 +2,6 @@ import sys
 import threading
 import json
 from src.node import Node
-from src.sort import merge_sort_nodes
 
 
 # Pergunta os IDs dos nós que vão estar rodando seus sockets nesse computador
@@ -17,7 +16,7 @@ except ValueError:
 nodes = []
 
 # Carregar topologia dos nós
-with open('./topologia.txt', 'r') as arquivo:
+with open('./config/topologia.txt', 'r') as arquivo:
     for line in arquivo:
         id, known_hosts = line.split(':')
         if (int(id) in node_ids):
@@ -28,7 +27,7 @@ with open('./topologia.txt', 'r') as arquivo:
     # merge_sort_nodes(nodes)
 
 # Carregar configuração dos nós
-with open('./config.txt', 'r') as arquivo:
+with open('./config/config.txt', 'r') as arquivo:
     for line in arquivo:
         id, host, port, transfer_rate = line.split(' ')
         for node in nodes:
@@ -40,7 +39,7 @@ with open('./config.txt', 'r') as arquivo:
                         known_node.configure_node(host=host[:-1], port=port[:-1], transfer_rate=transfer_rate)
 
 # Essa variável representará o tempo de busca no nodo
-TIMEOUT = 2
+TIMEOUT = 120
 
 # Função para iniciar o cliente de um nó em uma thread separada
 def start_node_udp_socket(node):
