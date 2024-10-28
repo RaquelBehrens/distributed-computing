@@ -95,4 +95,8 @@ while True:
                 search_node.create_udp_client(known_node.host, known_node.port, message_json)
 
             # Cria thread para verificar arquivos recebidos, decidir de onde vai pegar os arquivos, fazer as conexões TCP, e juntar os arquivos encontrados
-            threading.Thread(target=search_node.search_chunks, args=(chunks, file_wanted, TIMEOUT)).start()
+            search_chunks_thread = threading.Thread(target=search_node.search_chunks, args=(chunks, file_wanted, TIMEOUT))
+            search_chunks_thread.start()
+
+            # Aguarda a thread terminar antes de continuar no loop
+            search_chunks_thread.join()

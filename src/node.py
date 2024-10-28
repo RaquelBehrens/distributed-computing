@@ -5,6 +5,7 @@ import time
 import math
 import re
 
+PRINT_LOGS = False
 
 class Node:
     def __init__(self, id):
@@ -14,6 +15,7 @@ class Node:
         self.transfer_rate = None
         self.known_nodes = []
         self.chunks_found = {}
+        self.transfered_files = 0
 
     def configure_node(self, host, port, transfer_rate):
         self.host = host
@@ -39,7 +41,7 @@ class Node:
     def create_udp_socket(self):
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         server_socket.bind((self.host, int(self.port)))
-        print(f"Node {self.id} listening UDP in {self.host}:{self.port}.")
+        PRINT_LOGS and print(f"Node {self.id} listening UDP in {self.host}:{self.port}.")
         self.handle_udp_client(server_socket)
 
     def create_tcp_socket(self, file):
@@ -48,18 +50,18 @@ class Node:
         server_socket.bind((self.host, int(self.port)))
         server_socket.listen()
         server_socket.settimeout(timeout)
-        print(f"Node {self.id} listening TCP on {self.host}:{self.port} for {timeout} seconds")
+        PRINT_LOGS and print(f"Node {self.id} listening TCP on {self.host}:{self.port} for {timeout} seconds")
 
         try:
-            print(f"Node {self.id} TCP is waiting for connection")
+            PRINT_LOGS and print(f"Node {self.id} TCP is waiting for connection")
             conn, addr = server_socket.accept()
-            print(f"Connected TCP: {self.id} - {self.host}:{self.port} received connection from {addr}")
+            PRINT_LOGS and print(f"Connected TCP: {self.id} - {self.host}:{self.port} received connection from {addr}")
             self.handle_tcp_client(conn, addr, file)  # Chama a função para lidar com a conexão
             server_socket.close()  # Fecha o socket após a conexão
         except socket.timeout:
-            print(f"Node {self.id} exceeded time limit while waiting for TCP connection.")
+            PRINT_LOGS and print(f"Node {self.id} exceeded time limit while waiting for TCP connection.")
         except Exception as e:
-            print(f"Error while accepting connection: {e}")
+            PRINT_LOGS and print(f"Error while accepting connection: {e}")
 
     def handle_tcp_client(self, conn, addr, file_path):
         # Cria o diretório se não existir
@@ -69,7 +71,7 @@ class Node:
 
         try:
             with conn:
-                print(f"Node {self.id} TCP received connection")
+                PRINT_LOGS and print(f"Node {self.id} TCP received connection")
                 with open(full_file_path, 'wb') as file:  # Abre o arquivo em modo de escrita binária
                     while True:
                         data = conn.recv(1024)
@@ -77,15 +79,16 @@ class Node:
                             break  # Sai do loop se não houver mais dados
                         file.write(data)  # Escreve os dados recebidos no arquivo
 
-            print(f"File received and saved to {full_file_path}")
+            self.transfered_files += 1
+            PRINT_LOGS and print(f"File received and saved to {full_file_path}")
         except Exception as e:
-            print(f"Error during file reception from {addr}: {e}")
+            PRINT_LOGS and print(f"Error during file reception from {addr}: {e}")
 
     def handle_udp_client(self, server_socket):
         while True:
             message, address = server_socket.recvfrom(1024)
             message = message.upper()
-            print(f"Node {self.id}, with {self.host}:{self.port}, received: {message!r} from {address}")
+            PRINT_LOGS and print(f"Node {self.id}, with {self.host}:{self.port}, received: {message!r} from {address}")
 
             # Envia confirmação de recebimento de mensagem ao sender
             ack_message = json.dumps({'status': 'received'})
@@ -96,7 +99,7 @@ class Node:
             data_dict = json.loads(data_str)
 
             type = data_dict['TYPE_CLIENT']
-            print(f"Node {self.id} received from {address} type of connection: {type}")
+            PRINT_LOGS and print(f"Node {self.id} received from {address} type of connection: {type}")
 
             if type == 'SEARCHING_FILE':
                 file_wanted = data_dict['FILE_WANTED']
@@ -104,8 +107,8 @@ class Node:
                 original_address = data_dict['ORIGINAL_ADDRESS']
                 flooding = data_dict['FLOODING']
 
-                print(f"Address: {original_address}")
-                print(f"Remaining flooding: {flooding}")
+                PRINT_LOGS and print(f"Address: {original_address}")
+                PRINT_LOGS and print(f"Remaining flooding: {flooding}")
 
                 matching_files = self.look_for_chunks(file_wanted)
 
@@ -119,7 +122,7 @@ class Node:
                         'transfer_rate': self.transfer_rate
                     }
                     message_json = json.dumps(message_sent)
-                    print(f"Node {self.id} is sending files found {matching_files} to {original_address[0]}:{original_address[1]}")
+                    PRINT_LOGS and print(f"Node {self.id} is sending files found {matching_files} to {original_address[0]}:{original_address[1]}")
                     self.create_udp_client(original_address[0], int(original_address[1]), message_json)
 
                 # Caso o flooding seja maior que 0, criar conexão UDP pra procurar nos known_nodes se tem aquele arquivo
@@ -137,10 +140,10 @@ class Node:
                         # Verifica se a requisição não está sendo feita para o nodo original ou para o nodo requisitor
                         if (node.host != original_address[0] or node.port != original_address[1]) and \
                             (node.host != sender_address[0] or node.port != sender_address[1]):
-                            print(f"Node {self.id} is sending search to {node.host}:{node.port}")
+                            PRINT_LOGS and print(f"Node {self.id} is sending search to {node.host}:{node.port}")
                             self.create_udp_client(node.host, node.port, message_json)
                 else:
-                    print("Flooding ended.")
+                    PRINT_LOGS and print("Flooding ended.")
 
             elif type == 'FOUND_FILE':                    
                 # Tratamento dos arquivos/chunks recebidos
@@ -169,18 +172,18 @@ class Node:
                 
                 # Tenta conexão com o socket TCP 10 vezes, pois pode ser que o socket ainda não esteja aberto
                 for pings in range(max_attempts):
-                    print(f"TRYING TO CONNECT TO TCP Ping {pings}: Node {self.id} is creating TCP client to {sender_address}")
+                    PRINT_LOGS and print(f"TRYING TO CONNECT TO TCP Ping {pings}: Node {self.id} is creating TCP client to {sender_address}")
                     try:
                         self.create_tcp_client(sender_address[0], sender_address[1], file, transfer_rate)
                         break
                     except ConnectionRefusedError as e:
-                        print(f"TCP Connection refused between node {self.id} and {sender_address[0]}:{sender_address[1]}: {e}")
+                        PRINT_LOGS and print(f"TCP Connection refused between node {self.id} and {sender_address[0]}:{sender_address[1]}: {e}")
                         if pings == max_attempts - 1:
-                            print("Max attempts reached, no acknowledgment received.")
+                            PRINT_LOGS and print("Max attempts reached, no acknowledgment received.")
 
                             end = time.time()
                             elapsed = end - start
-                            print(f'TRYING TO CONNECT TO TCP Pings: {pings}, Elapsed: {elapsed}')
+                            PRINT_LOGS and print(f'TRYING TO CONNECT TO TCP Pings: {pings}, Elapsed: {elapsed}')
                             break
 
 
@@ -205,8 +208,12 @@ class Node:
         message_json = json.dumps(message_sent)
         self.create_udp_client(transfer_node[0][0], int(transfer_node[0][1]), message_json)
 
-        #Criar conexão tcp que espera o arquivo
-        self.create_tcp_socket(file)
+        try:
+            #Criar conexão tcp que espera o arquivo
+            self.create_tcp_socket(file)
+        except OSError as e:
+            print(f"ERRO: {e}")
+            print(f"Encerre esse terminal, abra outro, e tente novamente.")
 
     def create_udp_client(self, other_host, other_port, message_sent):
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -217,33 +224,33 @@ class Node:
         
         # Tenta 5 vezes enviar mensagem ao socket UDP
         for pings in range(max_attempts):
-            print(f'TRYING TO SEND UDP Ping {pings}: Host {self.id} - {self.host}:{self.port} sending message {message_sent} to {other_host}:{other_port}')
+            PRINT_LOGS and print(f'TRYING TO SEND UDP Ping {pings}: Host {self.id} - {self.host}:{self.port} sending message {message_sent} to {other_host}:{other_port}')
             client_socket.sendto(message_sent.encode('utf-8'), (other_host, int(other_port)))
 
             try:
                 data, server = client_socket.recvfrom(1024)
                 ack = json.loads(data.decode('utf-8'))
                 if ack.get('status') == 'received':
-                    print(f"Node {self.id} received confirmation from {server[0]}:{server[1]}")
+                    PRINT_LOGS and print(f"Node {self.id} received confirmation from {server[0]}:{server[1]}")
                     break
             except socket.timeout:
-                print(f'REQUEST TIMED OUT FOR CLIENT {self.id} - no acknowledgment received from {other_host}:{other_port}')    
+                PRINT_LOGS and print(f'REQUEST TIMED OUT FOR CLIENT {self.id} - no acknowledgment received from {other_host}:{other_port}')    
             
         if pings == max_attempts - 1:
-            print("Max attempts reached, no acknowledgment received.")
+            PRINT_LOGS and print("Max attempts reached, no acknowledgment received.")
 
         end = time.time()
         elapsed = end - start
-        print(f'Pings: {pings}, Elapsed: {elapsed}')
+        PRINT_LOGS and print(f'Pings: {pings}, Elapsed: {elapsed}')
 
         client_socket.close()
 
     def create_tcp_client(self, original_host, original_port, file_path, transfer_rate):
         # Cria o socket TCP do cliente
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        print(f"Node {self.id} is trying to connect to TCP {original_host}:{original_port}")
+        PRINT_LOGS and print(f"Node {self.id} is trying to connect to TCP {original_host}:{original_port}")
         client_socket.connect((original_host, int(original_port)))
-        print(f"Node {self.id} connected to TCP {original_host}:{original_port}")
+        PRINT_LOGS and print(f"Node {self.id} connected to TCP {original_host}:{original_port}")
 
         # Define diretório do arquivo
         save_directory = f"{os.path.dirname(os.path.abspath(__file__))}/../nodes/{self.id}"
@@ -253,21 +260,21 @@ class Node:
         chunk_size = 1024
         time_per_chunk = chunk_size / transfer_rate  # Tempo necessário para enviar cada chunk
 
-        print(f"Node {self.id} will try to send chunks")
+        PRINT_LOGS and print(f"Node {self.id} will try to send chunks")
         try:
-            print(f"Node {self.id} is opening file {file_path}")
+            PRINT_LOGS and print(f"Node {self.id} is opening file {file_path}")
             with open(file_path, 'rb') as file:
-                print(f"Node {self.id} is reading file {file_path}")
+                PRINT_LOGS and print(f"Node {self.id} is reading file {file_path}")
                 while chunk := file.read(chunk_size):  # Lê o arquivo em blocos de 1024 bytes
-                    print(f"Node {self.id} sent a chunk of {chunk_size} bytes to {original_host}:{original_port}")
+                    PRINT_LOGS and print(f"Node {self.id} sent a chunk of {chunk_size} bytes to {original_host}:{original_port}")
                     client_socket.sendall(chunk)
                     time.sleep(time_per_chunk)  # Pausa para limitar a taxa de transferência
 
-            print("File sent successfully")
+            PRINT_LOGS and print("File sent successfully")
         except IOError as e:
-            print(f"Error reading the file: {e}")
+            PRINT_LOGS and print(f"Error reading the file: {e}")
         except Exception as e:
-            print(f"Error during file transmission: {e}")
+            PRINT_LOGS and print(f"Error during file transmission: {e}")
         finally:
             client_socket.close()
 
@@ -275,8 +282,8 @@ class Node:
     def search_chunks(self, num_chunks_required, file_wanted, timeout=120):
         start_time = time.time()
         first_search = True
-        print(f"Node {self.id} is starting to investigate received files")
-        print(f"Node {self.id} is waiting for files")
+        PRINT_LOGS and print(f"Node {self.id} is starting to investigate received files")
+        PRINT_LOGS and print(f"Node {self.id} is waiting for files")
 
         result_timeout = False
 
@@ -284,13 +291,13 @@ class Node:
             # Verifica se o tempo decorrido excedeu o timeout
             elapsed_time = time.time() - start_time
             if elapsed_time > timeout:
-                print(f"Timeout reached. Node {self.id} stopped searching.")
+                PRINT_LOGS and print(f"Timeout reached. Node {self.id} stopped searching.")
                 result_timeout = True
                 break
 
             if self.chunks_found:  # Só entra quando encontrar o primeiro arquivo
                 if first_search:
-                    print(f"Node {self.id} received first file and is waiting 10 seconds to decide")
+                    PRINT_LOGS and print(f"Node {self.id} received first file and is waiting 10 seconds to decide")
                     time.sleep(10)  # Espera 10 segundos na primeira vez
                     first_search = False
 
@@ -316,25 +323,30 @@ class Node:
                         break
 
                 if is_possible:
-                    print(address_search.items())
+                    PRINT_LOGS and print(address_search.items())
+                    print(f"PERCENTAGE OF THE FILE ALREADY TRANSFERRED: {(self.transfered_files/num_chunks_required)*100}%")
                     for key, value in address_search.items():
                         if value[1] == math.inf:
-                            print(f"Node {self.id} already had {key} previosly.")
+                            PRINT_LOGS and print(f"Node {self.id} already had {key} previosly.")
+                            self.transfered_files += 1
                         else:
-                            print(f"Searching file {key} in {value[0][0]}:{value[0][1]} with transfer rate {value[1]} bytes/s.")
+                            PRINT_LOGS and print(f"Searching file {key} in {value[0][0]}:{value[0][1]} with transfer rate {value[1]} bytes/s.")
                             self.transfer_file(key, value)
+                        print(f"PERCENTAGE OF THE FILE ALREADY TRANSFERRED: {(self.transfered_files/num_chunks_required)*100}%")
                 else:
-                    print("It was not possible to collect all file's chunks.")
+                    PRINT_LOGS and print("It was not possible to collect all file's chunks.")
         
+        print(f"PERCENTAGE OF THE FILE ALREADY TRANSFERRED: {(self.transfered_files/num_chunks_required)*100}%")
+
         matching_files = self.look_for_chunks(file_wanted)
         if result_timeout and len(matching_files) < num_chunks_required :
-            print("ERROR: Did not find all chunks.")
+            print("TIMEOUT ERROR: Did not find all chunks.")
         else:
-            print("SUCCESS: Found all chunks!")
+            PRINT_LOGS and print("SUCCESS: Found all chunks!")
             self.merge_files(file_wanted, num_chunks_required)
     
     def merge_files(self, file_wanted, num_chunks):
-        print("Merging files")
+        PRINT_LOGS and print("Merging files")
 
         # Caminho do diretório onde os chunks estão armazenados
         chunks_directory = f"{os.path.dirname(os.path.abspath(__file__))}/../nodes/{self.id}"
@@ -344,14 +356,15 @@ class Node:
 
         with open(output_file, 'wb') as outfile:
             for i in range(0, num_chunks):
-                print(f"Merging file {file_wanted}.ch{i}")
+                PRINT_LOGS and print(f"Merging file {file_wanted}.ch{i}")
                 chunk_name = os.path.join(chunks_directory, f"{file_wanted}.ch{i}")
                 if os.path.exists(chunk_name):
                     with open(chunk_name, 'rb') as infile:
                         outfile.write(infile.read())
                 else:
-                    print(f"Chunk {chunk_name} not found!")
+                    PRINT_LOGS and print(f"Chunk {chunk_name} not found!")
                     break
 
-        print(f"Files merged into {output_file}")
+        PRINT_LOGS and print(f"Files merged into {output_file}")
+        print(f"SUCCESS: File {output_file} ready!")
 
