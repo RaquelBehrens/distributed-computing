@@ -47,38 +47,33 @@ with open('./image.png.p2p', 'r') as arquivo:
     flooding = int(linhas[2].strip())
 
 # Essa variável representará o tempo de busca no nodo
-timeout = 60
+timeout = 120
 
 # Pergunta o ID do nó que vai procurar o arquivo
-search_node_id = input("Digite o nó que vai procurar o arquivo (aqui vai ser inicializado seu socket UDP também): ")
+search_node_id = input("Digite o nó que vai procurar o arquivo: ")
 try:
     search_node_id = search_node_id
 except ValueError:
     print("O nó precisa ser representado por um inteiro.")
 
 # Função para iniciar o cliente de um nó em uma thread separada
-def start_node_udp_socket(node, timeout, chunks):
-    node.create_udp_socket(timeout, chunks)
+def start_node_udp_socket(node, timeout):
+    node.create_udp_socket(timeout)
 
-# Criar e iniciar uma thread para cada ID de nó recebido
+# Cria e inicia uma thread para cada ID de nó recebido
 search_node = None
 for node in nodes:
     if (node.id == search_node_id):
         search_node = node
-    # if node_id < len(nodes):
-        # node = nodes[node_id]
-    thread = threading.Thread(target=start_node_udp_socket, args=(node, timeout, chunks))
+    thread = threading.Thread(target=start_node_udp_socket, args=(node, timeout))
     thread.start()
-    # else:
-        # print(f"Nó com ID {node_id} não encontrado.")
 
+# Procura o arquivo
 if search_node != None:
-    # search_node = nodes[search_node_id]
     search_node.configure_known_chunks(file_wanted)
-    # # search_node.create_udp_socket()
-    # threading.Thread(target=start_node_udp_socket, args=(search_node, timeout, chunks,)).start()
 
     message_sent = {
+        'type_client': 'searching_file',
         'file_wanted': file_wanted,
         'address': (search_node.host, search_node.port),
         'original_address': (search_node.host, search_node.port),
@@ -87,4 +82,6 @@ if search_node != None:
     message_json = json.dumps(message_sent)
 
     for known_node in search_node.known_nodes:
-        search_node.create_client(known_node.host, known_node.port, message_json)
+        search_node.create_udp_client(known_node.host, known_node.port, message_json)
+
+    threading.Thread(target=search_node.search_chunks, args=(chunks,)).start()
