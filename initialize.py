@@ -38,9 +38,6 @@ with open('./config/config.txt', 'r') as arquivo:
                     if (id[:-1] == known_node.id):
                         known_node.configure_node(host=host[:-1], port=port[:-1], transfer_rate=transfer_rate)
 
-# Essa variável representará o tempo de busca no nodo
-TIMEOUT = 120
-
 # Função para iniciar o cliente de um nó em uma thread separada
 def start_node_udp_socket(node):
     node.create_udp_socket()
@@ -97,7 +94,7 @@ while True:
                 search_node.create_udp_client(known_node.host, known_node.port, message_json)
 
             # Cria thread para verificar arquivos recebidos, decidir de onde vai pegar os arquivos, fazer as conexões TCP, e juntar os arquivos encontrados
-            search_chunks_thread = threading.Thread(target=search_node.search_chunks, args=(chunks, file_wanted, TIMEOUT))
+            search_chunks_thread = threading.Thread(target=search_node.search_chunks, args=(chunks, file_wanted))
             search_chunks_thread.start()
 
             # Aguarda a thread terminar antes de continuar no loop

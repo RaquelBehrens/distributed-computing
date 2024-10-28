@@ -5,7 +5,7 @@ import time
 import math
 import re
 
-PRINT_LOGS = False
+PRINT_LOGS = False; MAX_REQ_RECV = 1024; TIMEOUT = 120
 
 class Node:
     def __init__(self, id):
@@ -74,7 +74,7 @@ class Node:
                 PRINT_LOGS and print(f"Node {self.id} TCP received connection")
                 with open(full_file_path, 'wb') as file:  # Abre o arquivo em modo de escrita binária
                     while True:
-                        data = conn.recv(1024)
+                        data = conn.recv(MAX_REQ_RECV)
                         if not data:
                             break  # Sai do loop se não houver mais dados
                         file.write(data)  # Escreve os dados recebidos no arquivo
@@ -257,7 +257,7 @@ class Node:
         save_directory = f"{os.path.dirname(os.path.abspath(__file__))}/../nodes/{self.id}"
         file_path = os.path.join(save_directory, file_name.lower())
 
-        # Calcula o tempo de espera necessário para cada chunk de 1024 bytes
+        # Calcula o tempo de espera necessário para cada chunk de chunk_size bytes
         chunk_size = int(transfer_rate)
         time_per_chunk = chunk_size / transfer_rate  # Tempo necessário para enviar cada chunk
 
@@ -268,7 +268,7 @@ class Node:
                 PRINT_LOGS and print(f"Node {self.id} is reading file {file_path}")
                 total_size = os.path.getsize(file_path)
                 current_size = chunk_size
-                while chunk := file.read(chunk_size):  # Lê o arquivo em blocos de 1024 bytes
+                while chunk := file.read(chunk_size):  # Lê o arquivo em blocos de chunk_size bytes
                     PRINT_LOGS and  print(f"Node {self.id} sent a chunk of {chunk_size} bytes to {original_host}:{original_port}")
                     print(f"Chunk {file_name} {current_size*100/total_size:.2f}% transferred.")
                     client_socket.sendall(chunk)
@@ -288,7 +288,7 @@ class Node:
             client_socket.close()
 
     # Função para busca de chunks em uma thread separada
-    def search_chunks(self, num_chunks_required, file_wanted, timeout=120):
+    def search_chunks(self, num_chunks_required, file_wanted, timeout=TIMEOUT):
         start_time = time.time()
         first_search = True
         PRINT_LOGS and print(f"Node {self.id} is starting to investigate received files")
