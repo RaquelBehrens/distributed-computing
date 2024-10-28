@@ -94,4 +94,4 @@ while True:
             for known_node in search_node.known_nodes:
                 search_node.create_udp_client(known_node.host, known_node.port, message_json)
 
-            threading.Thread(target=search_node.search_chunks, args=(chunks, TIMEOUT)).start()
+            threading.Thread(target=search_node.search_chunks, args=(chunks, file_wanted, TIMEOUT)).start()

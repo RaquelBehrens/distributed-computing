@@ -273,7 +273,7 @@ class Node:
             client_socket.close()
 
     # Função para busca de chunks em uma thread separada
-    def search_chunks(self, num_chunks_required, timeout=120):
+    def search_chunks(self, num_chunks_required, file_wanted, timeout=120):
         start_time = time.time()
         first_search = True
         print(f"Node {self.id} is starting to investigate received files")
@@ -337,7 +337,27 @@ class Node:
             print("ERROR: Did not find all chunks.")
         else:
             print("SUCCESS: Found all chunks!")
-            self.merge_files()
+            self.merge_files(file_wanted, num_chunks_required)
     
-    def merge_files(self):
-        print("Iniciando junção de arquivos")
+    def merge_files(self, file_wanted, num_chunks):
+        print("Merging files")
+
+        # Caminho do diretório onde os chunks estão armazenados
+        chunks_directory = f"{os.path.dirname(os.path.abspath(__file__))}/../nodes/{self.id}"
+        
+        # Nome do arquivo de saída
+        output_file = os.path.join(chunks_directory, f"{file_wanted}")
+
+        with open(output_file, 'wb') as outfile:
+            for i in range(0, num_chunks):
+                print(f"Merging file {file_wanted}.ch{i}")
+                chunk_name = os.path.join(chunks_directory, f"{file_wanted}.ch{i}")
+                if os.path.exists(chunk_name):
+                    with open(chunk_name, 'rb') as infile:
+                        outfile.write(infile.read())
+                else:
+                    print(f"Chunk {chunk_name} not found!")
+                    break
+
+        print(f"Files merged into {output_file}")
+
