@@ -58,7 +58,7 @@ while True:
 
     command = input().split()
     if (command[0] == 'sair'):
-        print("Encerrando programa.")
+        print("Ending program.")
         sys.exit(0)
     else:
         if (command):
@@ -68,6 +68,7 @@ while True:
                 for node in nodes:
                     if (node.id == search_node_id):
                         search_node = node
+                        break
             else:
                 search_node = nodes[0]
 

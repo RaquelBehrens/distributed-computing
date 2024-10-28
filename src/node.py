@@ -250,7 +250,7 @@ class Node:
         file_path = os.path.join(save_directory, file_path.lower())
 
         # Calcula o tempo de espera necessário para cada chunk de 1024 bytes
-        chunk_size = 1024
+        chunk_size = int(transfer_rate)
         time_per_chunk = chunk_size / transfer_rate  # Tempo necessário para enviar cada chunk
 
         print(f"Node {self.id} will try to send chunks")
@@ -258,10 +258,18 @@ class Node:
             print(f"Node {self.id} is opening file {file_path}")
             with open(file_path, 'rb') as file:
                 print(f"Node {self.id} is reading file {file_path}")
+                total_size = os.path.getsize(file_path)
+                current_size = chunk_size
                 while chunk := file.read(chunk_size):  # Lê o arquivo em blocos de 1024 bytes
                     print(f"Node {self.id} sent a chunk of {chunk_size} bytes to {original_host}:{original_port}")
+                    print(f"File {current_size*100/total_size:.2f}% transferred.")
                     client_socket.sendall(chunk)
                     time.sleep(time_per_chunk)  # Pausa para limitar a taxa de transferência
+
+                    if (current_size+chunk_size <= total_size):
+                        current_size += chunk_size
+                    else:
+                        current_size = total_size 
 
             print("File sent successfully")
         except IOError as e:
