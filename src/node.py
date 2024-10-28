@@ -48,18 +48,21 @@ class Node:
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.bind((self.host, int(self.port)))
         server_socket.listen()
+        server_socket.settimeout(2)
         print(f"Node {self.id} listening TCP on {self.host}:{self.port}")
 
-        try:
-            conn, addr = server_socket.accept()
-            print(f"Connected TCP: {self.id} - {self.host}:{self.port} received connection from {addr}")
-            self.handle_tcp_client(conn, addr)  # Chama a função para lidar com a conexão
-        except socket.timeout:
-            print(f"Node {self.id} exceeded time limit while waiting for TCP connection.")
-        except Exception as e:
-            print(f"Error while accepting connection: {e}")
-        finally:
-            server_socket.close()  # Fecha o socket após a conexão
+        while True:
+            try:
+                print(f"Node {self.id} TCP is waiting for connection")
+                conn, addr = server_socket.accept()
+                print(f"Connected TCP: {self.id} - {self.host}:{self.port} received connection from {addr}")
+                self.handle_tcp_client(conn, addr)  # Chama a função para lidar com a conexão
+                server_socket.close()  # Fecha o socket após a conexão
+                break
+            except socket.timeout:
+                print(f"Node {self.id} exceeded time limit while waiting for TCP connection.")
+            except Exception as e:
+                print(f"Error while accepting connection: {e}")
 
     def handle_tcp_client(self, conn, addr):
         # Cria o diretório se não existir
@@ -72,6 +75,7 @@ class Node:
 
         try:
             with conn:
+                print(f"Node {self.id} TCP received connection")
                 with open(file_path, 'wb') as file:  # Abre o arquivo em modo de escrita binária
                     while True:
                         data = conn.recv(1024)
@@ -122,6 +126,7 @@ class Node:
                             'transfer_rate': self.transfer_rate
                         }
                         message_json = json.dumps(message_sent)
+                        print(f"Node {self.id} is sending files found {matching_files} to {original_address[0]}:{original_address[1]}")
                         self.create_udp_client(original_address[0], int(original_address[1]), message_json)
 
                     # Caso o flooding seja maior que 0, criar conexão UDP pra procurar nos known_nodes se tem aquele arquivo
@@ -139,17 +144,19 @@ class Node:
                             # Verifica se a requisição não está sendo feita para o nodo original ou para o nodo requisitor
                             if (node.host != original_address[0] or node.port != original_address[1]) and \
                                 (node.host != sender_address[0] or node.port != sender_address[1]):
+                                print(f"Node {self.id} is sending search to {node.host}:{node.port}")
                                 self.create_udp_client(node.host, node.port, message_json)
                     else:
                         print("Flooding ended.")
 
-                elif type == 'FOUND_FILE':
+                elif type == 'FOUND_FILE':                    
                     # Tratamento dos arquivos/chunks recebidos
                     file_wanted = data_dict['FILE_WANTED']
                     files_found = data_dict['FILES_FOUND']
                     sender_address = data_dict['ADDRESS']
                     transfer_rate = data_dict['TRANSFER_RATE']
 
+                    print(f"Node {self.id} is adding {file_wanted} to chunks_found")
                     for chunk in files_found:
                         # Nome do arquivo + .ch
                         chunk_part = int(chunk[len(file_wanted)+3:])
@@ -162,9 +169,18 @@ class Node:
 
                 elif type == 'SEND_FILE':
                     file = data_dict['FILE']
+                    sender_address = data_dict['ADDRESS']
                     transfer_rate =  data_dict['TRANSFER_RATE']
-
-                    self.create_tcp_client(address[0], address[1], file, transfer_rate)
+                    
+                    while True:
+                        time.sleep(5)
+                        print(f"Node {self.id} is creating TCP client to {sender_address}")
+                        try:
+                            self.create_tcp_client(sender_address[0], sender_address[1], file, transfer_rate)
+                        except ConnectionRefusedError as e:
+                            print(e)
+                        finally:
+                            break
             
             except socket.timeout:
                 print("Exceeded searching files time limit")
@@ -175,17 +191,19 @@ class Node:
         matching_files = [f for f in files_in_directory if f.startswith(file_wanted.lower())]
         return matching_files
     
-    def transfer_file(self, file, transfer_node):
-        threading.Thread(target=self.create_tcp_socket, args=()).start()
-        
+    def transfer_file(self, file, transfer_node):        
         # Informar ao nó que vai transferir, que a conexão TCP foi aberta
         message_sent = {
             'type_client': 'send_file',
+            'address': (self.host, self.port),
             'file': file,
             'transfer_rate': transfer_node[1]
         }
         message_json = json.dumps(message_sent)
         self.create_udp_client(transfer_node[0][0], int(transfer_node[0][1]), message_json)
+
+        #Criar conexão tcp que espera o arquivo
+        self.create_tcp_socket()
 
     def create_udp_client(self, other_host, other_port, message_sent):
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -221,17 +239,22 @@ class Node:
     def create_tcp_client(self, original_host, original_port, file_path, transfer_rate):
         # Cria o socket TCP do cliente
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        print(f"Node {self.id} is trying to connect to TCP {original_host}:{original_port}")
         client_socket.connect((original_host, original_port))
+        print(f"Node {self.id} connected to TCP {original_host}:{original_port}")
 
         # Calcula o tempo de espera necessário para cada chunk de 1024 bytes
         chunk_size = 1024
         time_per_chunk = chunk_size / transfer_rate  # Tempo necessário para enviar cada chunk
-
+        
+        print(f"Node {self.id} will try to send chunks")
         try:
+            print(f"Node {self.id} is opening file {file_path}")
             with open(file_path, 'rb') as file:
+                print(f"Node {self.id} is reading file {file_path}")
                 while chunk := file.read(chunk_size):  # Lê o arquivo em blocos de 1024 bytes
-                    client_socket.sendall(chunk)
                     print(f"Sent a chunk of {chunk_size} bytes to {original_host}:{original_port}")
+                    client_socket.sendall(chunk)
                     time.sleep(time_per_chunk)  # Pausa para limitar a taxa de transferência
 
             print("File sent successfully")
