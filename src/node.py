@@ -7,14 +7,19 @@ import math
 
 
 class Node:
-    def __init__(self, id, host, port, transfer_rate):
+    def __init__(self, id):
         self.id = id
-        self.host = host
-        self.port = port
-        self.transfer_rate = transfer_rate
+        self.host = None
+        self.port = None
+        self.transfer_rate = None
         self.known_nodes = []
 
         self.chunks_found = {}
+
+    def configure_node(self, host, port, transfer_rate):
+        self.host = host
+        self.port = port
+        self.transfer_rate = transfer_rate
 
     def add_known_node(self, known_nodes):
         self.known_nodes += known_nodes
