@@ -48,21 +48,19 @@ class Node:
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.bind((self.host, int(self.port)))
         server_socket.listen()
-        server_socket.settimeout(2)
+        server_socket.settimeout(15)
         print(f"Node {self.id} listening TCP on {self.host}:{self.port}")
 
-        while True:
-            try:
-                print(f"Node {self.id} TCP is waiting for connection")
-                conn, addr = server_socket.accept()
-                print(f"Connected TCP: {self.id} - {self.host}:{self.port} received connection from {addr}")
-                self.handle_tcp_client(conn, addr)  # Chama a função para lidar com a conexão
-                server_socket.close()  # Fecha o socket após a conexão
-                break
-            except socket.timeout:
-                print(f"Node {self.id} exceeded time limit while waiting for TCP connection.")
-            except Exception as e:
-                print(f"Error while accepting connection: {e}")
+        try:
+            print(f"Node {self.id} TCP is waiting for connection")
+            conn, addr = server_socket.accept()
+            print(f"Connected TCP: {self.id} - {self.host}:{self.port} received connection from {addr}")
+            self.handle_tcp_client(conn, addr)  # Chama a função para lidar com a conexão
+            server_socket.close()  # Fecha o socket após a conexão
+        except socket.timeout:
+            print(f"Node {self.id} exceeded time limit while waiting for TCP connection.")
+        except Exception as e:
+            print(f"Error while accepting connection: {e}")
 
     def handle_tcp_client(self, conn, addr):
         # Cria o diretório se não existir
