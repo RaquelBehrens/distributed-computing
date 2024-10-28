@@ -53,6 +53,7 @@ for node in nodes:
 
 # Recebe e procura o arquivo
 while True:
+    print("")
     print("Digite 'sair' para interromper a execução, ou então digite o nó que vai procurar o arquivo e o arquivo .p2p desejado!")
     print("Exemplo: se quero começar a busca pelo nó 0, e o arquivo .p2p é o image.png.p2p, digito: '0 image.png.p2p'")
 
@@ -100,4 +101,4 @@ while True:
             search_chunks_thread.start()
 
             # Aguarda a thread terminar antes de continuar no loop
-            search_chunks_thread.join()
+            # search_chunks_thread.join()

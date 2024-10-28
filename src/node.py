@@ -123,6 +123,7 @@ class Node:
                     }
                     message_json = json.dumps(message_sent)
                     PRINT_LOGS and print(f"Node {self.id} is sending files found {matching_files} to {original_address[0]}:{original_address[1]}")
+                    time.sleep(1) # Para efeito da simulação, cada nodo que for transmitir uma mensagem de descoberta de arquivo deve atrasar a retransmissão em 1s
                     self.create_udp_client(original_address[0], int(original_address[1]), message_json)
 
                 # Caso o flooding seja maior que 0, criar conexão UDP pra procurar nos known_nodes se tem aquele arquivo
