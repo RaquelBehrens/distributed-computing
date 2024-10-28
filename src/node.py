@@ -166,7 +166,6 @@ class Node:
             elif type == 'SEND_FILE':
                 file = data_dict['FILE']
                 sender_address = data_dict['ADDRESS']
-                transfer_rate =  data_dict['TRANSFER_RATE']
                 
                 max_attempts = 10
                 start = time.time()
@@ -175,7 +174,7 @@ class Node:
                 for pings in range(max_attempts):
                     PRINT_LOGS and print(f"TRYING TO CONNECT TO TCP Ping {pings}: Node {self.id} is creating TCP client to {sender_address}")
                     try:
-                        self.create_tcp_client(sender_address[0], sender_address[1], file, transfer_rate)
+                        self.create_tcp_client(sender_address[0], sender_address[1], file)
                         break
                     except ConnectionRefusedError as e:
                         PRINT_LOGS and print(f"TCP Connection refused between node {self.id} and {sender_address[0]}:{sender_address[1]}: {e}")
@@ -203,8 +202,7 @@ class Node:
         message_sent = {
             'type_client': 'send_file',
             'address': (self.host, self.port),
-            'file': file,
-            'transfer_rate': transfer_node[1]
+            'file': file
         }
         message_json = json.dumps(message_sent)
         self.create_udp_client(transfer_node[0][0], int(transfer_node[0][1]), message_json)
@@ -246,7 +244,7 @@ class Node:
 
         client_socket.close()
 
-    def create_tcp_client(self, original_host, original_port, file_name, transfer_rate):
+    def create_tcp_client(self, original_host, original_port, file_name):
         # Cria o socket TCP do cliente
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         PRINT_LOGS and print(f"Node {self.id} is trying to connect to TCP {original_host}:{original_port}")
@@ -258,8 +256,8 @@ class Node:
         file_path = os.path.join(save_directory, file_name.lower())
 
         # Calcula o tempo de espera necessário para cada chunk de chunk_size bytes
-        chunk_size = int(transfer_rate)
-        time_per_chunk = chunk_size / transfer_rate  # Tempo necessário para enviar cada chunk
+        chunk_size = int(self.transfer_rate)
+        time_per_chunk = chunk_size / int(self.transfer_rate)  # Tempo necessário para enviar cada chunk
 
         PRINT_LOGS and print(f"Node {self.id} will try to send chunks")
         try:
