@@ -240,7 +240,7 @@ class Node:
         # Cria o socket TCP do cliente
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         print(f"Node {self.id} is trying to connect to TCP {original_host}:{original_port}")
-        client_socket.connect((original_host, original_port))
+        client_socket.connect((original_host, int(original_port)))
         print(f"Node {self.id} connected to TCP {original_host}:{original_port}")
 
         # Calcula o tempo de espera necessário para cada chunk de 1024 bytes
