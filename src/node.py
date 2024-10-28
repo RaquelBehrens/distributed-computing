@@ -167,15 +167,26 @@ class Node:
                 sender_address = data_dict['ADDRESS']
                 transfer_rate =  data_dict['TRANSFER_RATE']
                 
-                while True:
-                    time.sleep(5)
-                    print(f"Node {self.id} is creating TCP client to {sender_address}")
+
+                max_attempts = 10
+                start = time.time()
+                
+                # Tenta 10 vezes
+                for pings in range(max_attempts):
+                    print(f"TRYING TO CONNECT TO TCP Ping {pings}: Node {self.id} is creating TCP client to {sender_address}")
                     try:
                         self.create_tcp_client(sender_address[0], sender_address[1], file, transfer_rate)
+                        break
                     except ConnectionRefusedError as e:
                         print(f"TCP Connection refused between node {self.id} and {sender_address[0]}:{sender_address[1]}: {e}")
-                    finally:
-                        break
+                        if pings == max_attempts - 1:
+                            print("Max attempts reached, no acknowledgment received.")
+
+                            end = time.time()
+                            elapsed = end - start
+                            print(f'TRYING TO CONNECT TO TCP Pings: {pings}, Elapsed: {elapsed}')
+                            break
+
 
     def look_for_chunks(self, file_wanted):
         current_directory = f"{os.path.dirname(os.path.abspath(__file__))}/../nodes/{self.id}"
@@ -206,7 +217,7 @@ class Node:
         
         # Tenta 10 vezes
         for pings in range(max_attempts):
-            print(f'Ping {pings}: Host {self.id} - {self.host}:{self.port} sending message {message_sent} to {other_host}:{other_port}')
+            print(f'TRYING TO SEND UDP Ping {pings}: Host {self.id} - {self.host}:{self.port} sending message {message_sent} to {other_host}:{other_port}')
             client_socket.sendto(message_sent.encode('utf-8'), (other_host, int(other_port)))
 
             try:
