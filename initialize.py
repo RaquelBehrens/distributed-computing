@@ -39,49 +39,59 @@ with open('./config.txt', 'r') as arquivo:
                     if (id[:-1] == known_node.id):
                         known_node.configure_node(host=host[:-1], port=port[:-1], transfer_rate=transfer_rate)
 
-# Carregar arquivo desejado
-with open('./image.png.p2p', 'r') as arquivo:
-    linhas = arquivo.readlines()
-    file_wanted = linhas[0].strip()
-    chunks = int(linhas[1].strip())
-    flooding = int(linhas[2].strip())
-
 # Essa variável representará o tempo de busca no nodo
 TIMEOUT = 2
-
-# Pergunta o ID do nó que vai procurar o arquivo
-search_node_id = input("Digite o nó que vai procurar o arquivo: ")
-try:
-    search_node_id = search_node_id
-except ValueError:
-    print("O nó precisa ser representado por um inteiro.")
 
 # Função para iniciar o cliente de um nó em uma thread separada
 def start_node_udp_socket(node):
     node.create_udp_socket()
 
 # Cria e inicia uma thread para cada ID de nó recebido
-search_node = None
 for node in nodes:
-    if (node.id == search_node_id):
-        search_node = node
     thread = threading.Thread(target=start_node_udp_socket, args=(node, ))
+    thread.daemon = True
     thread.start()
 
-# Procura o arquivo
-if search_node != None:
-    search_node.configure_known_chunks(file_wanted)
+# Recebe e procura o arquivo
+while True:
+    # if (len(nodes) == 1):
+    #     print("Digite o caminho do arquivo desejado para começar a busca ou [sair] para encerrar o programa.")
+    # else:
+    #     print("Digite o nó que vai procurar o arquivo e o caminho do arquivo desejado para começar a busca ou [sair] para encerrar o programa.")
 
-    message_sent = {
-        'type_client': 'searching_file',
-        'file_wanted': file_wanted,
-        'address': (search_node.host, search_node.port),
-        'original_address': (search_node.host, search_node.port),
-        'flooding': flooding
-    }
-    message_json = json.dumps(message_sent)
+    command = input().split()
+    if (command[0] == 'sair'):
+        print("Encerrando programa.")
+        sys.exit(0)
+    else:
+        if (command):
+            if (len(command) == 2):
+                search_node_id = command[0]
+                for node in nodes:
+                    if (node.id == search_node_id):
+                        search_node = node
+            else:
+                search_node = nodes[0]
 
-    for known_node in search_node.known_nodes:
-        search_node.create_udp_client(known_node.host, known_node.port, message_json)
+            file_path = command[-1]
+            # Carregar arquivo desejado
+            with open(file_path, 'r') as file:
+                linhas = file.readlines()
+                file_wanted = linhas[0].strip()
+                chunks = int(linhas[1].strip())
+                flooding = int(linhas[2].strip())
+    
+            search_node.configure_known_chunks(file_wanted)
+            message_sent = {
+                'type_client': 'searching_file',
+                'file_wanted': file_wanted,
+                'address': (search_node.host, search_node.port),
+                'original_address': (search_node.host, search_node.port),
+                'flooding': flooding
+            }
+            message_json = json.dumps(message_sent)
 
-    threading.Thread(target=search_node.search_chunks, args=(chunks, TIMEOUT)).start()
+            for known_node in search_node.known_nodes:
+                search_node.create_udp_client(known_node.host, known_node.port, message_json)
+
+            threading.Thread(target=search_node.search_chunks, args=(chunks, TIMEOUT)).start()
