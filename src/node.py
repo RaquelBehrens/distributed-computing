@@ -44,7 +44,7 @@ class Node:
         print(f"Node {self.id} listening UDP in {self.host}:{self.port} for {timeout} seconds.")
         self.handle_udp_client(server_socket)
 
-    def create_tcp_socket(self):
+    def create_tcp_socket(self, file):
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.bind((self.host, int(self.port)))
         server_socket.listen()
@@ -55,33 +55,30 @@ class Node:
             print(f"Node {self.id} TCP is waiting for connection")
             conn, addr = server_socket.accept()
             print(f"Connected TCP: {self.id} - {self.host}:{self.port} received connection from {addr}")
-            self.handle_tcp_client(conn, addr)  # Chama a função para lidar com a conexão
+            self.handle_tcp_client(conn, addr, file)  # Chama a função para lidar com a conexão
             server_socket.close()  # Fecha o socket após a conexão
         except socket.timeout:
             print(f"Node {self.id} exceeded time limit while waiting for TCP connection.")
         except Exception as e:
             print(f"Error while accepting connection: {e}")
 
-    def handle_tcp_client(self, conn, addr):
+    def handle_tcp_client(self, conn, addr, file_path):
         # Cria o diretório se não existir
         save_directory = f"{os.path.dirname(os.path.abspath(__file__))}/../nodes/{self.id}"
         os.makedirs(save_directory, exist_ok=True)
-
-        # Lê o nome do arquivo enviado pelo cliente
-        file_name = conn.recv(1024).decode('utf-8').strip()  # Lê o nome do arquivo até a nova linha
-        file_path = os.path.join(save_directory, file_name)  # Define o caminho do arquivo a ser salvo
+        full_file_path = os.path.join(save_directory, file_path)
 
         try:
             with conn:
                 print(f"Node {self.id} TCP received connection")
-                with open(file_path, 'wb') as file:  # Abre o arquivo em modo de escrita binária
+                with open(full_file_path, 'wb') as file:  # Abre o arquivo em modo de escrita binária
                     while True:
                         data = conn.recv(1024)
                         if not data:
                             break  # Sai do loop se não houver mais dados
                         file.write(data)  # Escreve os dados recebidos no arquivo
 
-            print(f"File {file_name} received and saved to {file_path}")
+            print(f"File received and saved to {full_file_path}")
         except Exception as e:
             print(f"Error during file reception from {addr}: {e}")
 
@@ -201,7 +198,7 @@ class Node:
         self.create_udp_client(transfer_node[0][0], int(transfer_node[0][1]), message_json)
 
         #Criar conexão tcp que espera o arquivo
-        self.create_tcp_socket()
+        self.create_tcp_socket(file)
 
     def create_udp_client(self, other_host, other_port, message_sent):
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -241,10 +238,14 @@ class Node:
         client_socket.connect((original_host, int(original_port)))
         print(f"Node {self.id} connected to TCP {original_host}:{original_port}")
 
+        # Define diretório do arquivo
+        save_directory = f"{os.path.dirname(os.path.abspath(__file__))}/../nodes/{self.id}"
+        file_path = os.path.join(save_directory, file_path.lower())
+
         # Calcula o tempo de espera necessário para cada chunk de 1024 bytes
         chunk_size = 1024
         time_per_chunk = chunk_size / transfer_rate  # Tempo necessário para enviar cada chunk
-        
+
         print(f"Node {self.id} will try to send chunks")
         try:
             print(f"Node {self.id} is opening file {file_path}")
@@ -256,8 +257,8 @@ class Node:
                     time.sleep(time_per_chunk)  # Pausa para limitar a taxa de transferência
 
             print("File sent successfully")
-        except IOError:
-            print("Error reading the file.")
+        except IOError as e:
+            print("Error reading the file.: {e}")
         except Exception as e:
             print(f"Error during file transmission: {e}")
         finally:
@@ -268,43 +269,39 @@ class Node:
         first_search = True
         print(f"Node {self.id} is starting to investigate received files")
 
-        while True:
-            print(f"Node {self.id} is waiting for files")
-            if self.chunks_found:  # Só entra quando encontrar o primeiro arquivo
-                if first_search:
-                    print(f"Node {self.id} received first file and is waiting 10 seconds to decide")
-                    time.sleep(10)  # Espera 10 segundos na primeira vez
-                    first_search = False
+        print(f"Node {self.id} is waiting for files")
+        if self.chunks_found:  # Só entra quando encontrar o primeiro arquivo
+            if first_search:
+                print(f"Node {self.id} received first file and is waiting 10 seconds to decide")
+                time.sleep(10)  # Espera 10 segundos na primeira vez
+                first_search = False
 
-                is_possible = True
-                address_search = {}
+            is_possible = True
+            address_search = {}
 
-                for part in range(num_chunks_required):
-                    if (part in self.chunks_found):
-                        for i, chunk_info in enumerate(self.chunks_found[part]):
-                            if (i == 0):
+            for part in range(num_chunks_required):
+                if (part in self.chunks_found):
+                    for i, chunk_info in enumerate(self.chunks_found[part]):
+                        if (i == 0):
+                            best_option = i
+                            best_address = chunk_info[1]
+                            best_rate = chunk_info[2]
+                        else:
+                            if (chunk_info[2] > best_rate):
                                 best_option = i
                                 best_address = chunk_info[1]
                                 best_rate = chunk_info[2]
-                            else:
-                                if (chunk_info[2] > best_rate):
-                                    best_option = i
-                                    best_address = chunk_info[1]
-                                    best_rate = chunk_info[2]
-                        address_search[self.chunks_found[part][best_option][0].lower()] = [best_address, best_rate]
-                    else:
-                        is_possible = False
-                        break
-
-                if is_possible:
-                    for key, value in address_search.items():
-                        if value[1] == math.inf:
-                            print(f"Node {self.id} already had {key} previosly.")
-                        else:
-                            print(f"Searching file {key} in {value[0][0]}:{value[0][1]} with transfer rate {value[1]} bytes/s.")
-                            self.transfer_file(key, value)
+                    address_search[self.chunks_found[part][best_option][0].lower()] = [best_address, best_rate]
                 else:
-                    print("It was not possible to collect all file's chunks.")
-            
-            # Aguarda a chegada de novos arquivos para verificar novamente
-            time.sleep(2)
+                    is_possible = False
+                    break
+
+            if is_possible:
+                for key, value in address_search.items():
+                    if value[1] == math.inf:
+                        print(f"Node {self.id} already had {key} previosly.")
+                    else:
+                        print(f"Searching file {key} in {value[0][0]}:{value[0][1]} with transfer rate {value[1]} bytes/s.")
+                        self.transfer_file(key, value)
+            else:
+                print("It was not possible to collect all file's chunks.")
