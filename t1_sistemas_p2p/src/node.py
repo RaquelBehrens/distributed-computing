@@ -344,8 +344,9 @@ class Node:
                     PRINT_LOGS and print("It was not possible to collect all file's chunks.")
 
         matching_files = self.look_for_chunks(file_wanted)
-
         print(f"PERCENTAGE OF THE FILE ALREADY TRANSFERRED: {(len(matching_files)/num_chunks_required)*100}%")
+        self.chunks_found.clear()
+        self.transfered_files = 0
 
         if result_timeout and len(matching_files) < num_chunks_required :
             print("TIMEOUT ERROR: Did not find all chunks.")
