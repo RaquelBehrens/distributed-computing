@@ -3,6 +3,7 @@ import socket
 import random
 import json
 import time
+from broadcast import AtomicDifusion 
 
 
 PRINT_LOGS = True; TIMEOUT = 120
@@ -14,6 +15,7 @@ class Node():
         self.id = id
         self.host = host
         self.port = port
+        self.ad = AtomicDifusion()
 
     def configure_node(self, host, port):
         self.host = host
@@ -73,7 +75,7 @@ class Node():
         PRINT_LOGS and print(f"Node {self.id} will try to send item")
         time.sleep(3)
         try:
-            item_json = json.dumps(item).encode('utf-8')  # item é o dicionário
+            item_json = json.dumps(item).encode('utf-8')
             client_socket.send(item_json)
             PRINT_LOGS and print("Item sent successfully")
 
@@ -87,13 +89,16 @@ class Node():
             client_socket.close()
 
             if (data_dict):
-                return tuple(item) + tuple(data_dict)
+                if data_dict['type'] == 'send_transaction':
+                    return tuple(item) + tuple(data_dict)
+                elif data_dict['type'] == 'result':
+                    pass
 
 
 class ServerNode(Node):
     def __init__(self, id, host, port):
         super().__init__(id, host, port)
-        self.db = {'x':(10,)} #  {item1: (valor1, versao1), item2: (valor2, versao2)}
+        self.db = {'x':(0,0), 'y': (0,0)} #  {item1: (valor1, versao1), item2: (valor2, versao2)}
 
     def save_in_db(self, data):
         data_str = data.decode('utf-8')
@@ -103,28 +108,42 @@ class ServerNode(Node):
 
     def server(self):
         last_committed = 0
-        # # ???
         
         # recebe (client_id, (read, item)) do cliente c
         self.create_tcp_socket()
-    #     # ???
-    #     # recebe mensagem por abcast
-    #     i = j = 0
-    #     abort = False
-        
-    #     while (i < len(read_server)):
-    #         if ():
-    #             # ???
-    #             abort = True
-    #             break
-    #         i += 1
 
-    #     if (not abort):
-    #         last_committed += 1
-    #         while (j < len(write_server)):
-    #             # ???
-    #             # ???
-    #             j += 1
+        while True:
+            # recebe mensagem por abcast
+            received = self.ad.deliver()
+            i = j = 0
+            abort = False
+
+            read_server = received['rs']
+            write_server = received['ws']
+            transactions = received['transactions']
+            
+            while (i < len(read_server)):
+                if (self.db[read_server[i][0]][1] > read_server[i][2]):
+                    # mandar pro cliente que a operação resultou em abort
+                    
+                    abort = True
+                    transactions.clear()
+                    break
+                i += 1
+
+            if (not abort):
+                last_committed += 1
+                # write server = [[x, 0], [x,3], [y, 3]]
+                # {item1: (valor1, versao1), item2: (valor2, versao2)}
+                while (j < len(write_server)):
+                    version = self.db[write_server[j][0]][1] + 1
+                    value = write_server[j][1]
+                    self.db[write_server[j][0]] = (value, version)
+                    
+                    j += 1
+                
+                self.create_tcp_socket()
+                
 
 
 class ClientNode(Node):
@@ -143,7 +162,7 @@ class ClientNode(Node):
             if server.id == id_server:
                 return server
 
-    # transactions = [('read',x), ('write',y), ('commit')]
+    # transactions = [('read',x), ('write',y, 2), ('commit')]
     def transaction(self, servers, transactions):
         write_server = []
         read_server = []
@@ -154,7 +173,7 @@ class ClientNode(Node):
             current_transaction = transactions[i]
             
             if (current_transaction[0] == 'write'):
-                write_server.append(current_transaction[1:])
+                write_server.append(current_transaction[1:]) #[item, valor]
 
             if (current_transaction[0] == 'read'):
                 in_write_server = self.isInWrite(current_transaction[1], write_server)
@@ -164,7 +183,12 @@ class ClientNode(Node):
                     server_thread = threading.Thread(target=server_s.server)
                     server_thread.start()
 
-                    result = self.create_tcp_client(server_s.host, server_s.port, current_transaction[1])
+                    message = {
+                        'type': 'send_transaction',
+                        'transaction': current_transaction[1]
+                    }
+
+                    result = self.create_tcp_client(server_s.host, server_s.port, message)
                     if (result):
                         read_server.append(result)
 
@@ -172,6 +196,11 @@ class ClientNode(Node):
 
         if (transactions[i][0] == 'commit'):
             # envio por abcast
+            self.ad.broadcast(servers, write_server, read_server, transactions)
+            
+
+
+
             # recebe (cliente_id, outcome) de server_s
             transaction_result = 'outcome' # outcome recebido
         else:
