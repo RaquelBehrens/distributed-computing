@@ -15,7 +15,7 @@ class Node():
         self.id = id
         self.host = host
         self.port = port
-        self.ad = AtomicDiffusion(host, port)
+        self.ad = AtomicDiffusion(id, host, port)
 
     def configure_node(self, host, port):
         self.host = host
@@ -209,7 +209,7 @@ class ClientNode(Node):
             self.ad.broadcast(servers, write_server, read_server, transactions)
 
             message = {
-                'type': 'send_transaction',
+                'type': 'result',
             }
 
             outcome = self.create_tcp_client(server_s.host, server_s.port, message)

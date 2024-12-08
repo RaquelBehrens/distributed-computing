@@ -4,9 +4,13 @@ import json
 PRINT_LOGS = True; 
 
 class AtomicDiffusion:
-    def __init__(self, host, port):
+    def __init__(self, id, host, port):
+        self.id = id
+        self.host = host
+        self.port = port
+
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server_socket.bind((host, port))
+        self.server_socket.bind((self.host, int(self.port+10)))
         self.server_socket.listen()
 
     def broadcast(self, nodes, ws, rs, transactions):
