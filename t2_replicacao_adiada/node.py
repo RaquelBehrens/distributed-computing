@@ -3,7 +3,7 @@ import socket
 import random
 import json
 import time
-from broadcast import AtomicDifusion 
+from broadcast import AtomicDiffusion 
 
 
 PRINT_LOGS = True; TIMEOUT = 120
@@ -15,13 +15,13 @@ class Node():
         self.id = id
         self.host = host
         self.port = port
-        self.ad = AtomicDifusion()
+        self.ad = AtomicDiffusion(host, port)
 
     def configure_node(self, host, port):
         self.host = host
         self.port = port
 
-    def create_tcp_socket(self):
+    def create_tcp_socket(self, result=None):
             timeout = 15
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             server_socket.bind((self.host, int(self.port)))
@@ -33,14 +33,14 @@ class Node():
                 PRINT_LOGS and print(f"Node {self.id} TCP is waiting for connection")
                 conn, addr = server_socket.accept()
                 PRINT_LOGS and print(f"Connected TCP: {self.id} - {self.host}:{self.port} received connection from {addr}")
-                self.handle_tcp_client(conn, addr)  # Chama a função para lidar com a conexão
+                self.handle_tcp_client(conn, addr, result)  # Chama a função para lidar com a conexão
                 server_socket.close()  # Fecha o socket após a conexão
             except socket.timeout:
                 PRINT_LOGS and print(f"Node {self.id} exceeded time limit while waiting for TCP connection.")
             except Exception as e:
                 PRINT_LOGS and print(f"Error while accepting connection: {e}")
 
-    def handle_tcp_client(self, conn, addr):
+    def handle_tcp_client(self, conn, addr, result):
         try:
             with conn:
                 PRINT_LOGS and print(f"Node {self.id} TCP received connection")
@@ -51,16 +51,25 @@ class Node():
                 data_str = data.decode('utf-8')
                 data_dict = json.loads(data_str)
 
-                try:
-                    db_data = self.db[data_dict]
-                    item_json = json.dumps(db_data).encode('utf-8')  # item é o dicionário
+                type = data_dict['type']
 
-                except KeyError:
-                    PRINT_LOGS and print(f"Item not found in DB.")
+                if type == 'send_transaction':
+                    transaction_data = data_dict['transaction']
+                    try:
+                        db_data = self.db[transaction_data]
+                        item_json = json.dumps(db_data).encode('utf-8')  # item é o dicionário
 
-                    item_json = json.dumps(None).encode('utf-8')  # item é o dicionário
+                    except KeyError:
+                        PRINT_LOGS and print(f"Item not found in DB.")
 
-                conn.send(item_json)
+                        item_json = json.dumps(None).encode('utf-8')  # item é o dicionário
+
+                    conn.send(item_json)
+
+                elif type == 'result':
+                    result_json = json.dumps(result).encode('utf-8')
+
+                    conn.send(result_json)
 
         except Exception as e:
             PRINT_LOGS and print(f"Error during file reception from {addr}: {e}")
@@ -88,11 +97,11 @@ class Node():
         finally:
             client_socket.close()
 
-            if (data_dict):
-                if data_dict['type'] == 'send_transaction':
-                    return tuple(item) + tuple(data_dict)
-                elif data_dict['type'] == 'result':
-                    pass
+            if item['type'] == 'send_transaction':
+                if (data_dict):
+                    return tuple(item['transaction']) + tuple(data_dict)
+            elif item['type'] == 'result':
+                return data_dict
 
 
 class ServerNode(Node):
@@ -106,43 +115,44 @@ class ServerNode(Node):
 
         self.db[data_dict[0]] = tuple(data_dict[1:])
 
-    def server(self):
+    def server(self, consult=False):
         last_committed = 0
         
-        # recebe (client_id, (read, item)) do cliente c
-        self.create_tcp_socket()
+        if consult:
+            # recebe (client_id, (read, item)) do cliente c
+            self.create_tcp_socket()
+        else:
+            while True:
+                # recebe mensagem por abcast
+                received = self.ad.deliver()
+                i = j = 0
+                abort = False
 
-        while True:
-            # recebe mensagem por abcast
-            received = self.ad.deliver()
-            i = j = 0
-            abort = False
-
-            read_server = received['rs']
-            write_server = received['ws']
-            transactions = received['transactions']
-            
-            while (i < len(read_server)):
-                if (self.db[read_server[i][0]][1] > read_server[i][2]):
-                    # mandar pro cliente que a operação resultou em abort
-                    
-                    abort = True
-                    transactions.clear()
-                    break
-                i += 1
-
-            if (not abort):
-                last_committed += 1
-                # write server = [[x, 0], [x,3], [y, 3]]
-                # {item1: (valor1, versao1), item2: (valor2, versao2)}
-                while (j < len(write_server)):
-                    version = self.db[write_server[j][0]][1] + 1
-                    value = write_server[j][1]
-                    self.db[write_server[j][0]] = (value, version)
-                    
-                    j += 1
+                read_server = received['rs']
+                write_server = received['ws']
+                transactions = received['transactions']
                 
-                self.create_tcp_socket()
+                while (i < len(read_server)):
+                    if (self.db[read_server[i][0]][1] > read_server[i][2]):
+                        # mandar pro cliente que a operação resultou em abort
+                        self.create_tcp_socket('abort')
+                        abort = True
+                        transactions.clear()
+                        break
+                    i += 1
+
+                if (not abort):
+                    last_committed += 1
+                    # write server = [[x, 0], [x,3], [y, 3]]
+                    # {item1: (valor1, versao1), item2: (valor2, versao2)}
+                    while (j < len(write_server)):
+                        version = self.db[write_server[j][0]][1] + 1
+                        value = write_server[j][1]
+                        self.db[write_server[j][0]] = (value, version)
+                        
+                        j += 1
+                    
+                    self.create_tcp_socket('commit')
                 
 
 
@@ -178,9 +188,9 @@ class ClientNode(Node):
             if (current_transaction[0] == 'read'):
                 in_write_server = self.isInWrite(current_transaction[1], write_server)
                 if (in_write_server[0]):
-                    return_value = in_write_server[1]
+                    print(f"Value {in_write_server[1]} of {current_transaction[1]} is up to date.")
                 else:
-                    server_thread = threading.Thread(target=server_s.server)
+                    server_thread = threading.Thread(target=server_s.server, args=(True,))
                     server_thread.start()
 
                     message = {
@@ -197,12 +207,15 @@ class ClientNode(Node):
         if (transactions[i][0] == 'commit'):
             # envio por abcast
             self.ad.broadcast(servers, write_server, read_server, transactions)
-            
 
+            message = {
+                'type': 'send_transaction',
+            }
 
-
+            outcome = self.create_tcp_client(server_s.host, server_s.port, message)
             # recebe (cliente_id, outcome) de server_s
-            transaction_result = 'outcome' # outcome recebido
+            transaction_result = outcome # outcome recebido
         else:
             transaction_result = 'abort'
 
+        print(f"Result of transaction = {transaction_result}")

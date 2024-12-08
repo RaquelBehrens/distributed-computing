@@ -12,7 +12,7 @@ class AtomicDiffusion:
     def broadcast(self, nodes, ws, rs, transactions):
         for node in nodes:
             client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            client_socket.connect((node.host, int(node.port)))
+            client_socket.connect((node.host, int(node.port+10)))
 
             message_sent = {
             'ws': ws,
@@ -26,7 +26,7 @@ class AtomicDiffusion:
     def deliver(self):
         try:
             conn, addr = self.server_socket.accept()
-            PRINT_LOGS and print(f"Connected TCP: {self.id} - {self.host}:{self.port} received connection from {addr}")
+            PRINT_LOGS and print(f"Connected TCP: {self.id} - {self.host}:{self.port+10} received connection from {addr}")
 
             try:
                 with conn:
