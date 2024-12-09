@@ -12,11 +12,15 @@ class ClientNode(Node):
         self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     
     def isInWrite(self, read_item, write_list):
+        return_value = None
         for value in write_list:
             if (read_item == value[0]):
-                return (True, value[1])
-            
-        return (False, None)
+                return_value = (True, value[1])
+        
+        if (return_value == None):
+            return (False, None)
+        
+        return return_value
 
     def select_server(self, id_server, list_servers):
         for server in list_servers:
