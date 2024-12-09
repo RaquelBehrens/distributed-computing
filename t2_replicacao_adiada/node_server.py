@@ -1,14 +1,25 @@
+import threading
+import socket
 import json
 from node import Node
-
-
-PRINT_LOGS = True; TIMEOUT = 120
+from settings import PRINT_LOGS
 
 
 class ServerNode(Node):
     def __init__(self, id, host, port):
         super().__init__(id, host, port)
+
+    def initialize(self):
         self.db = {'x':(0,0), 'y': (0,0)} #  {item1: (valor1, versao1), item2: (valor2, versao2)}
+
+        self.broadcast_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.broadcast_socket.bind((self.host, int(self.port)))
+        
+        PRINT_LOGS and print(f"Node {self.id} listening UDP in {self.host}:{self.port}.")
+        
+        thread_server = threading.Thread(target=self.server)
+        thread_server.daemon = True
+        thread_server.start()
 
     def save_in_db(self, data):
         data_str = data.decode('utf-8')
@@ -16,17 +27,17 @@ class ServerNode(Node):
 
         self.db[data_dict[0]] = tuple(data_dict[1:])
 
-    def server(self, consult=False, deliver=None):
+    def server(self, consult=False):
         last_committed = 0
         
-        if consult:
-            # recebe (client_id, (read, item)) do cliente c
+        if (consult):
             self.create_tcp_socket()
         else:
             while True:
                 PRINT_LOGS and print(f"Deliver in Node {self.id}.")
                 # recebe mensagem por abcast
                 # deliver from UDP broadcast
+                deliver, address = self.handle_udp_client(self.broadcast_socket)
 
                 i = j = 0
                 abort = False
@@ -34,6 +45,8 @@ class ServerNode(Node):
                 read_server = deliver['rs']
                 write_server = deliver['ws']
                 transactions = deliver['transactions']
+
+                result = None
                 
                 while (i < len(read_server)):
                     if (self.db[read_server[i][0]][1] > read_server[i][2]):
@@ -42,7 +55,7 @@ class ServerNode(Node):
                         # self.create_tcp_socket('abort')
                         abort = True
                         transactions.clear()
-                        return "abort"
+                        result = "abort"
                     i += 1
 
                 if (not abort):
@@ -51,11 +64,15 @@ class ServerNode(Node):
                     # {item1: (valor1, versao1), item2: (valor2, versao2)}
                     while (j < len(write_server)):
                         version = self.db[write_server[j][0]][1] + 1
-                        value = write_server[j][1]
+                        value = int(write_server[j][1])
                         self.db[write_server[j][0]] = (value, version)
                         
                         j += 1
-                    
-                    # self.create_tcp_socket('commit')
-                    return "commit"
+                
+                    result = "commit"
+
+                PRINT_LOGS and print(f"Sending result of node {self.id}, with {self.host}:{self.port}, to {address}: {result}")
+                # Envia confirmação de recebimento de mensagem ao sender
+                result_message = json.dumps({'result': result})
+                self.broadcast_socket.sendto(result_message.encode('utf-8'), address)
                 

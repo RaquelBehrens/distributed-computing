@@ -2,11 +2,8 @@ import threading
 import random
 import socket
 import json
-import time
-
 from node import Node
-
-PRINT_LOGS = True; TIMEOUT = 120
+from settings import PRINT_LOGS
 
 
 class ClientNode(Node):
@@ -71,9 +68,10 @@ class ClientNode(Node):
 
     def broadcast(self, nodes, ws, rs, transactions):
         results = {}
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        
         for node in nodes:
             PRINT_LOGS and print(f"Broadcast from {self.host}:{self.port} to {node.host}:{node.port}")
-            client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
             message_sent = {
             'ws': ws,
