@@ -1,9 +1,7 @@
 import threading
 import socket
-import random
 import json
 import time
-from broadcast import AtomicDiffusion 
 
 
 PRINT_LOGS = True; TIMEOUT = 120
@@ -15,7 +13,11 @@ class Node():
         self.id = id
         self.host = host
         self.port = port
-        self.ad = AtomicDiffusion(id, host, port)
+
+        self.broadcast_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.broadcast_socket.bind((self.host, int(self.port)))
+        PRINT_LOGS and print(f"Node {self.id} listening UDP in {self.host}:{self.port}.")
+        threading.Thread(target=self.handle_udp_client, args=(self.broadcast_socket, )).start()
 
     def configure_node(self, host, port):
         self.host = host
@@ -104,118 +106,12 @@ class Node():
                 return data_dict
 
 
-class ServerNode(Node):
-    def __init__(self, id, host, port):
-        super().__init__(id, host, port)
-        self.db = {'x':(0,0), 'y': (0,0)} #  {item1: (valor1, versao1), item2: (valor2, versao2)}
+    def handle_udp_client(self, server_socket):
+        while True:
+            message, address = server_socket.recvfrom(1024)
+            PRINT_LOGS and print(f"Broadcast received! Node {self.id}, with {self.host}:{self.port}, received: {message!r} from {address}")
 
-    def save_in_db(self, data):
-        data_str = data.decode('utf-8')
-        data_dict = json.loads(data_str)
+            data_str = message.decode('utf-8')
+            data_dict = json.loads(data_str)
 
-        self.db[data_dict[0]] = tuple(data_dict[1:])
-
-    def server(self, consult=False):
-        last_committed = 0
-        
-        if consult:
-            # recebe (client_id, (read, item)) do cliente c
-            self.create_tcp_socket()
-        else:
-            while True:
-                # recebe mensagem por abcast
-                received = self.ad.deliver()
-                i = j = 0
-                abort = False
-
-                read_server = received['rs']
-                write_server = received['ws']
-                transactions = received['transactions']
-                
-                while (i < len(read_server)):
-                    if (self.db[read_server[i][0]][1] > read_server[i][2]):
-                        # mandar pro cliente que a operação resultou em abort
-                        self.create_tcp_socket('abort')
-                        abort = True
-                        transactions.clear()
-                        break
-                    i += 1
-
-                if (not abort):
-                    last_committed += 1
-                    # write server = [[x, 0], [x,3], [y, 3]]
-                    # {item1: (valor1, versao1), item2: (valor2, versao2)}
-                    while (j < len(write_server)):
-                        version = self.db[write_server[j][0]][1] + 1
-                        value = write_server[j][1]
-                        self.db[write_server[j][0]] = (value, version)
-                        
-                        j += 1
-                    
-                    self.create_tcp_socket('commit')
-                
-
-
-class ClientNode(Node):
-    def __init__(self, id, host, port):
-        super().__init__(id, host, port)
-    
-    def isInWrite(self, read_item, write_list):
-        for value in write_list:
-            if (read_item == value[0]):
-                return (True, value[1])
-            
-        return (False, None)
-
-    def select_server(self, id_server, list_servers):
-        for server in list_servers:
-            if server.id == id_server:
-                return server
-
-    # transactions = [('read',x), ('write',y, 2), ('commit')]
-    def transaction(self, servers, transactions):
-        write_server = []
-        read_server = []
-        i = 0
-
-        server_s = self.select_server(random.randint(0,len(servers)-1), servers)
-        while (transactions[i][0] != 'commit' and transactions[i][0] != 'abort'):        
-            current_transaction = transactions[i]
-            
-            if (current_transaction[0] == 'write'):
-                write_server.append(current_transaction[1:]) #[item, valor]
-
-            if (current_transaction[0] == 'read'):
-                in_write_server = self.isInWrite(current_transaction[1], write_server)
-                if (in_write_server[0]):
-                    print(f"Value {in_write_server[1]} of {current_transaction[1]} is up to date.")
-                else:
-                    server_thread = threading.Thread(target=server_s.server, args=(True,))
-                    server_thread.start()
-
-                    message = {
-                        'type': 'send_transaction',
-                        'transaction': current_transaction[1]
-                    }
-
-                    result = self.create_tcp_client(server_s.host, server_s.port, message)
-                    if (result):
-                        read_server.append(result)
-
-            i += 1
-
-        if (transactions[i][0] == 'commit'):
-            # envio por abcast
-            self.ad.broadcast(servers, write_server, read_server, transactions)
-
-            message = {
-                'type': 'result',
-            }
-
-            outcome = self.create_tcp_client(server_s.host, server_s.port, message)
-            # recebe (cliente_id, outcome) de server_s
-            transaction_result = outcome # outcome recebido
-        else:
-            transaction_result = 'abort'
-
-        print(f"Result of transaction = {transaction_result}")
+            self.server(False, data_dict)
