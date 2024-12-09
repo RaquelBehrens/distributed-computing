@@ -78,6 +78,7 @@ class ClientNode(Node):
             transaction_result = 'abort'
 
         print(f"Result of transaction = {transaction_result}")
+        return transaction_result
 
     def broadcast(self, nodes, ws, rs, transactions):
         self.logical_clock += 1

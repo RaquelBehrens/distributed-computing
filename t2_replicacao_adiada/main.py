@@ -61,7 +61,7 @@ if __name__ == '__main__':
                 current_client = client
         
         if current_client != None:
-            client.transaction(servers, transactions)
+            resultado = client.transaction(servers, transactions)
         else:
             print("Erro no input.")
             break
