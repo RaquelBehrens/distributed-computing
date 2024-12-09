@@ -4,20 +4,14 @@ import json
 import time
 
 
-PRINT_LOGS = True; TIMEOUT = 120
+PRINT_LOGS = False; TIMEOUT = 120
 
 
 class Node():
     def __init__(self, id, host, port):
-        super().__init__()
         self.id = id
         self.host = host
         self.port = port
-
-        self.broadcast_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.broadcast_socket.bind((self.host, int(self.port)))
-        PRINT_LOGS and print(f"Node {self.id} listening UDP in {self.host}:{self.port}.")
-        threading.Thread(target=self.handle_udp_client, args=(self.broadcast_socket, )).start()
 
     def configure_node(self, host, port):
         self.host = host
@@ -26,6 +20,7 @@ class Node():
     def create_tcp_socket(self, result=None):
             timeout = 15
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             server_socket.bind((self.host, int(self.port)))
             server_socket.listen()
             server_socket.settimeout(timeout)
@@ -79,12 +74,13 @@ class Node():
     def create_tcp_client(self, original_host, original_port, item):
         # Cria o socket TCP do cliente
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         PRINT_LOGS and print(f"Node {self.id} is trying to connect to TCP {original_host}:{original_port}")
+        time.sleep(2)
         client_socket.connect((original_host, int(original_port)))
         PRINT_LOGS and print(f"Node {self.id} connected to TCP {original_host}:{original_port}")
 
         PRINT_LOGS and print(f"Node {self.id} will try to send item")
-        time.sleep(3)
         try:
             item_json = json.dumps(item).encode('utf-8')
             client_socket.send(item_json)
@@ -114,4 +110,4 @@ class Node():
             data_str = message.decode('utf-8')
             data_dict = json.loads(data_str)
 
-            self.server(False, data_dict)
+            return data_dict

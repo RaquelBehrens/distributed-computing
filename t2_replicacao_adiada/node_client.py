@@ -5,7 +5,7 @@ import json
 
 from node import Node
 
-PRINT_LOGS = True; TIMEOUT = 120
+PRINT_LOGS = False; TIMEOUT = 120
 
 
 class ClientNode(Node):
@@ -84,9 +84,10 @@ class ClientNode(Node):
         print(f"Result of transaction = {transaction_result}")
 
     def broadcast(self, nodes, ws, rs, transactions):
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        
         for node in nodes:
             PRINT_LOGS and print(f"Broadcast from {self.host}:{self.port} to {node.host}:{node.port}")
-            client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
             message_sent = {
             'ws': ws,
@@ -96,3 +97,5 @@ class ClientNode(Node):
 
             item_json = json.dumps(message_sent).encode('utf-8')
             client_socket.sendto(item_json, (node.host, int(node.port)))
+
+        client_socket.close()

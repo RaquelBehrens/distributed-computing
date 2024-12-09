@@ -1,11 +1,12 @@
 import threading
-import random
+import socket
 import json
+import time
 
 from node import Node
 
 
-PRINT_LOGS = True; TIMEOUT = 120
+PRINT_LOGS = False; TIMEOUT = 120
 
 
 class ServerNode(Node):
@@ -13,13 +14,22 @@ class ServerNode(Node):
         super().__init__(id, host, port)
         self.db = {'x':(0,0), 'y': (0,0)} #  {item1: (valor1, versao1), item2: (valor2, versao2)}
 
+        self.broadcast_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.broadcast_socket.bind((self.host, int(self.port)))
+        
+        PRINT_LOGS and print(f"Node {self.id} listening UDP in {self.host}:{self.port}.")
+        
+        thread_server = threading.Thread(target=self.server)
+        thread_server.daemon = True
+        thread_server.start()
+
     def save_in_db(self, data):
         data_str = data.decode('utf-8')
         data_dict = json.loads(data_str)
 
         self.db[data_dict[0]] = tuple(data_dict[1:])
 
-    def server(self, consult=False, deliver=None):
+    def server(self, consult=False):
         last_committed = 0
         
         if consult:
@@ -29,6 +39,7 @@ class ServerNode(Node):
             while True:
                 # recebe mensagem por abcast
                 # deliver from UDP broadcast
+                deliver = self.handle_udp_client(self.broadcast_socket)
 
                 i = j = 0
                 abort = False
@@ -56,6 +67,5 @@ class ServerNode(Node):
                         self.db[write_server[j][0]] = (value, version)
                         
                         j += 1
-                    
+
                     self.create_tcp_socket('commit')
-                
