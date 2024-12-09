@@ -77,6 +77,7 @@ class Node():
         PRINT_LOGS and print(f"Node {self.id} connected to TCP {original_host}:{original_port}")
 
         PRINT_LOGS and print(f"Node {self.id} will try to send item")
+        data_dict = {}
         try:
             item_json = json.dumps(item).encode('utf-8')
             client_socket.send(item_json)
@@ -87,7 +88,7 @@ class Node():
             data_dict = json.loads(data_str)
 
         except Exception as e:
-            PRINT_LOGS and print(f"Error during transmission: {e}")
+            print(f"Error during transmission: {e}")
         finally:
             PRINT_LOGS and print(f"TCP Connection of Node {self.id} closed")
             client_socket.close()
