@@ -1,4 +1,4 @@
-import threading
+import time
 import random
 import socket
 import json
@@ -22,6 +22,7 @@ class ClientNode(Node):
         for server in list_servers:
             if int(server.id) == int(id_server):
                 return server
+        return None
 
     # transactions = [('read',x), ('write',y, 2), ('commit')]
     def transaction(self, servers, transactions):
@@ -29,7 +30,7 @@ class ClientNode(Node):
         read_server = []
         i = 0
 
-        server_s = self.select_server(random.randint(1,len(servers)), servers)
+        server_s = self.select_server(random.choice(servers).id, servers)
         while (transactions[i][0] != 'commit' and transactions[i][0] != 'abort'):
             current_transaction = transactions[i]
             PRINT_LOGS and print(f"Transaction {i}: {transactions[i]}")
@@ -81,13 +82,13 @@ class ClientNode(Node):
         return transaction_result
 
     def broadcast(self, nodes, ws, rs, transactions):
-        self.logical_clock += 1
+        current_timestamp = time.time()
 
         message_sent = {
         'ws': ws,
         'rs': rs,
         'transactions': transactions,
-        "timestamp": self.logical_clock,
+        "timestamp": current_timestamp,
         "sender": self.id
         }
 

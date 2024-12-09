@@ -1,26 +1,53 @@
 {
     "test_cases": [
-      {
-        "name": "Test Message Ordering - Basic",
-        "servers": [
-            { "node_id": 1, "host": "127.0.0.1", "port": "6001"},
-            { "node_id": 2, "host": "127.0.0.1", "port": "6002"},
-            { "node_id": 3, "host": "127.0.0.1", "port": "6003"},
-            { "node_id": 4, "host": "127.0.0.1", "port": "6004"}
-        ],
-        "clients": [
-            { "node_id": 0, "host": "127.0.0.0", "port": "6000"}
-        ],
-        "events": [
-            { "node_id": 0, "messages": [
-                {"command": "read", "item": "x", "value": ""},
-                {"command": "write", "item": "x", "value": "2"},
-                {"command": "commit", "item": "", "value": ""}
-                ]
-            }
-        ],
-        "result": "commit"
-      }
+        {
+            "name": "Teste 1 - Vários comandos de um cliente",
+            "servers": [
+                { "node_id": 1, "host": "127.0.0.1", "port": "6001"},
+                { "node_id": 2, "host": "127.0.0.1", "port": "6002"},
+                { "node_id": 3, "host": "127.0.0.1", "port": "6003"},
+                { "node_id": 4, "host": "127.0.0.1", "port": "6004"}
+            ],
+            "clients": [
+                { "node_id": 0, "host": "127.0.0.0", "port": "6000"}
+            ],
+            "events": [
+                { "node_id": 0, "messages": [
+                    {"command": "read", "item": "x", "value": ""},
+                    {"command": "write", "item": "x", "value": "2"},
+                    {"command": "commit", "item": "", "value": ""}
+                    ]
+                }
+            ],
+            "result": "commit"
+        },
+        {
+            "name": "Teste 2 - Vários comandos de vários clientes",
+            "servers": [
+                { "node_id": 12, "host": "127.0.0.1", "port": "6012"},
+                { "node_id": 13, "host": "127.0.0.1", "port": "6013"},
+                { "node_id": 14, "host": "127.0.0.1", "port": "6014"}
+            ],
+            "clients": [
+                { "node_id": 10, "host": "127.0.0.0", "port": "6010"},
+                { "node_id": 11, "host": "127.0.0.1", "port": "6011"}
+            ],
+            "events": [
+                { "node_id": 10, "messages": [
+                    {"command": "read", "item": "x", "value": ""},
+                    {"command": "write", "item": "x", "value": "2"},
+                    {"command": "commit", "item": "", "value": ""}
+                    ]
+                },
+                { "node_id": 11, "messages": [
+                    {"command": "read", "item": "x", "value": ""},
+                    {"command": "write", "item": "x", "value": "3"},
+                    {"command": "commit", "item": "", "value": ""}
+                    ]
+                }
+            ],
+            "result": "commit"
+        }
     ]
-  }
+}
   

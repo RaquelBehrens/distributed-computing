@@ -1,5 +1,6 @@
 import sys
 import json
+import time
 from node_client import ClientNode
 from node_server import ServerNode
 
@@ -44,7 +45,7 @@ def run_tests(test_file):
     
     for test_case in test_data['test_cases']:
         print(f"Running test: {test_case['name']}")
-        result = None
+        results = None
         
         # Inicializar servidores e clientes conforme especificado no teste
         initialize_servers(test_case['servers'])
@@ -59,7 +60,7 @@ def run_tests(test_file):
                     break
             
             if client:
-                result = run_transactions_for_client(client, [event])
+                results = run_transactions_for_client(client, [event])
             else:
                 print(f"Cliente com id {event['node_id']} não encontrado.")
         
@@ -67,17 +68,19 @@ def run_tests(test_file):
         if client:
             # Aqui você pode adicionar a lógica de verificação de estado ou resposta final
             print(f"Resultado esperado: {test_case['result']}")
-            if test_case['result'] == result:
+            if test_case['result'] == results:
                 print('SUCCESS!')
         else:
             print(f"Falha ao encontrar o cliente para o teste {test_case['name']}")
+        
+        print(f"Fechando os sockets abertos do caso de teste.")
+        for server in servers:
+            server.close_sockets()
+
+        print()
+        time.sleep(5)
 
 if __name__ == '__main__':
-    # Digite o nome do arquivo de teste
-    print("Digite o nome do arquivo de teste (exemplo: tests.json):")
-    test_file = input().strip()
-    
-    # Rodar os testes definidos no arquivo JSON
+    test_file = 'tests.json'
     run_tests(test_file)
-
     sys.exit(0)

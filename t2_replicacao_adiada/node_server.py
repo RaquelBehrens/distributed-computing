@@ -25,6 +25,13 @@ class ServerNode(Node):
         thread_tcp.daemon = True
         thread_tcp.start()
 
+    def close_sockets(self):
+        try:
+            self.broadcast_socket.close()
+            PRINT_LOGS and print(f"Socket from node {self.id} closed.")
+        except Exception as e:
+            PRINT_LOGS and print(f"Error closing socket from node {self.id}: {e}")
+
     def save_in_db(self, data):
         data_str = data.decode('utf-8')
         data_dict = json.loads(data_str)
@@ -32,7 +39,7 @@ class ServerNode(Node):
         self.db[data_dict[0]] = tuple(data_dict[1:])
 
     def server(self, consult=False):
-        last_committed = 0
+        last_committed = 0.0
         
         if (consult):
             while True:
@@ -44,11 +51,7 @@ class ServerNode(Node):
                 # deliver from UDP broadcast
                 deliver, address = self.handle_udp_client(self.broadcast_socket)
 
-                # Atualiza o relógio local (relógio lógico)
-                # O relógio é incrementado com base no timestamp da mensagem recebida.
-                # Isso garante que a ordem total seja mantida, pois o relógio lógico é ajustado
-                # para ser maior que o valor anterior (maximiza o valor entre o relógio local e o timestamp recebido).
-                self.logical_clock = max(self.logical_clock, deliver["timestamp"]) + 1
+                PRINT_LOGS and print(f"Received timestamp in Node {self.id}: {deliver['timestamp']}")
 
                 # Adicionar mensagem ao buffer
                 PRINT_LOGS and print(f"Add message to buffer of node {self.id}")
@@ -64,12 +67,12 @@ class ServerNode(Node):
                 while self.message_buffer:
                     # Obtém a próxima mensagem na fila
                     next_message = self.message_buffer[0]
-                    PRINT_LOGS and print(f"Check timestamp {next_message['timestamp']} if equal to {last_committed+1}")
+                    PRINT_LOGS and print(f"Node {self.id}: Check timestamp {next_message['timestamp']} if greater than {last_committed}")
                     
                     # A mensagem é processada se seu timestamp for o próximo esperado
                     # 'last_committed' é o timestamp da última transação confirmada. Se o próximo timestamp na fila
                     # for o próximo valor esperado (last_committed + 1), isso indica que a ordem está sendo respeitada.
-                    if next_message["timestamp"] == last_committed + 1:
+                    if next_message["timestamp"] > last_committed:
                         # Processa a mensagem
                         self.process_message(next_message, address)
 
