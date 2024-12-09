@@ -73,6 +73,12 @@
                     {"command": "write", "item": "x", "value": "3"},
                     {"command": "commit", "item": "", "value": ""}
                     ]
+                },
+                { "node_id": 20, "messages": [
+                    {"command": "read", "item": "x", "value": ""},
+                    {"command": "write", "item": "x", "value": "4"},
+                    {"command": "commit", "item": "", "value": ""}
+                    ]
                 }
             ],
             "order": "parallel",
