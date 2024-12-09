@@ -24,6 +24,7 @@ class Node():
         self.port = port
 
     def create_tcp_socket(self, result=None):
+            PRINT_LOGS and print(f"Node {self.id} trying to create TCP connection on {self.host}:{self.port}.")
             timeout = 15
             server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             server_socket.bind((self.host, int(self.port)))
@@ -35,7 +36,9 @@ class Node():
                 PRINT_LOGS and print(f"Node {self.id} TCP is waiting for connection")
                 conn, addr = server_socket.accept()
                 PRINT_LOGS and print(f"Connected TCP: {self.id} - {self.host}:{self.port} received connection from {addr}")
+                PRINT_LOGS and print(f"TCP Connection of Node {self.id} closed")
                 self.handle_tcp_client(conn, addr, result)  # Chama a função para lidar com a conexão
+                
                 server_socket.close()  # Fecha o socket após a conexão
             except socket.timeout:
                 PRINT_LOGS and print(f"Node {self.id} exceeded time limit while waiting for TCP connection.")
@@ -72,7 +75,6 @@ class Node():
                     result_json = json.dumps(result).encode('utf-8')
 
                     conn.send(result_json)
-
         except Exception as e:
             PRINT_LOGS and print(f"Error during file reception from {addr}: {e}")
 
@@ -97,6 +99,7 @@ class Node():
         except Exception as e:
             PRINT_LOGS and print(f"Error during transmission: {e}")
         finally:
+            PRINT_LOGS and print(f"TCP Connection of Node {self.id} closed")
             client_socket.close()
 
             if item['type'] == 'send_transaction':

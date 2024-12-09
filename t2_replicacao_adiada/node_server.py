@@ -1,7 +1,4 @@
-import threading
-import random
 import json
-
 from node import Node
 
 
@@ -27,6 +24,7 @@ class ServerNode(Node):
             self.create_tcp_socket()
         else:
             while True:
+                PRINT_LOGS and print(f"Deliver in Node {self.id}.")
                 # recebe mensagem por abcast
                 # deliver from UDP broadcast
 
@@ -39,6 +37,7 @@ class ServerNode(Node):
                 
                 while (i < len(read_server)):
                     if (self.db[read_server[i][0]][1] > read_server[i][2]):
+                        print(f"entrou no abort, Node {self.id}")
                         # mandar pro cliente que a operação resultou em abort
                         self.create_tcp_socket('abort')
                         abort = True

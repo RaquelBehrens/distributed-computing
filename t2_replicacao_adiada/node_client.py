@@ -2,6 +2,7 @@ import threading
 import random
 import socket
 import json
+import time
 
 from node import Node
 
@@ -59,16 +60,34 @@ class ClientNode(Node):
             i += 1
 
         PRINT_LOGS and print(f"Transaction {i}: {transactions[i]}")
-        if (transactions[i][0] == 'commit'):
-
-            # server_thread = threading.Thread(target=server_s.server, args=(True,))
-            # server_thread.start()
-    
+        if (transactions[i][0] == 'commit'):    
             # envio por abcast
             self.broadcast(servers, write_server, read_server, transactions)
 
             # server_thread = threading.Thread(target=server_s.server, args=(True,))
             # server_thread.start()
+
+
+            conexoes_tcp = []
+
+            for server in servers:
+                try:
+                    with socket.create_connection((server.host, server.port), 10):
+                        conexoes_tcp.append(True)
+                except (socket.timeout, ConnectionRefusedError, OSError):
+                    conexoes_tcp.append(False)
+
+
+            try:
+                with socket.create_connection((self.host, self.port), 10):
+                    conexoes_tcp.append(True)
+            except (socket.timeout, ConnectionRefusedError, OSError):
+                conexoes_tcp.append(False)
+
+
+            print(conexoes_tcp)
+            time.sleep(30)
+
 
             message = {
                 'type': 'result',
