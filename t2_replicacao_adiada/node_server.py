@@ -12,6 +12,8 @@ PRINT_LOGS = False; TIMEOUT = 120
 class ServerNode(Node):
     def __init__(self, id, host, port):
         super().__init__(id, host, port)
+
+    def initialize(self):
         self.db = {'x':(0,0), 'y': (0,0)} #  {item1: (valor1, versao1), item2: (valor2, versao2)}
 
         self.broadcast_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -32,8 +34,7 @@ class ServerNode(Node):
     def server(self, consult=False):
         last_committed = 0
         
-        if consult:
-            # recebe (client_id, (read, item)) do cliente c
+        if (consult):
             self.create_tcp_socket()
         else:
             while True:
@@ -63,7 +64,7 @@ class ServerNode(Node):
                     # {item1: (valor1, versao1), item2: (valor2, versao2)}
                     while (j < len(write_server)):
                         version = self.db[write_server[j][0]][1] + 1
-                        value = write_server[j][1]
+                        value = int(write_server[j][1])
                         self.db[write_server[j][0]] = (value, version)
                         
                         j += 1
