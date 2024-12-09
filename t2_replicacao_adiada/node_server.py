@@ -39,10 +39,10 @@ class ServerNode(Node):
                     if (self.db[read_server[i][0]][1] > read_server[i][2]):
                         print(f"entrou no abort, Node {self.id}")
                         # mandar pro cliente que a operação resultou em abort
-                        self.create_tcp_socket('abort')
+                        # self.create_tcp_socket('abort')
                         abort = True
                         transactions.clear()
-                        break
+                        return "abort"
                     i += 1
 
                 if (not abort):
@@ -56,5 +56,6 @@ class ServerNode(Node):
                         
                         j += 1
                     
-                    self.create_tcp_socket('commit')
+                    # self.create_tcp_socket('commit')
+                    return "commit"
                 

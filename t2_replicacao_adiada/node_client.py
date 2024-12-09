@@ -62,47 +62,15 @@ class ClientNode(Node):
         PRINT_LOGS and print(f"Transaction {i}: {transactions[i]}")
         if (transactions[i][0] == 'commit'):    
             # envio por abcast
-            self.broadcast(servers, write_server, read_server, transactions)
-
-            # server_thread = threading.Thread(target=server_s.server, args=(True,))
-            # server_thread.start()
-
-
-            conexoes_tcp = []
-
-            for server in servers:
-                try:
-                    with socket.create_connection((server.host, server.port), 10):
-                        conexoes_tcp.append(True)
-                except (socket.timeout, ConnectionRefusedError, OSError):
-                    conexoes_tcp.append(False)
-
-
-            try:
-                with socket.create_connection((self.host, self.port), 10):
-                    conexoes_tcp.append(True)
-            except (socket.timeout, ConnectionRefusedError, OSError):
-                conexoes_tcp.append(False)
-
-
-            print(conexoes_tcp)
-            time.sleep(30)
-
-
-            message = {
-                'type': 'result',
-            }
-
-            PRINT_LOGS and print(f"Creating TCP {server_s.host}:{server_s.port} to receive outcome")
-            outcome = self.create_tcp_client(server_s.host, server_s.port, message)
-            # recebe (cliente_id, outcome) de server_s
-            transaction_result = outcome # outcome recebido
+            results = self.broadcast(servers, write_server, read_server, transactions)
+            transaction_result = results[server_s.id] # outcome recebido
         else:
             transaction_result = 'abort'
 
         print(f"Result of transaction = {transaction_result}")
 
     def broadcast(self, nodes, ws, rs, transactions):
+        results = {}
         for node in nodes:
             PRINT_LOGS and print(f"Broadcast from {self.host}:{self.port} to {node.host}:{node.port}")
             client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -115,3 +83,15 @@ class ClientNode(Node):
 
             item_json = json.dumps(message_sent).encode('utf-8')
             client_socket.sendto(item_json, (node.host, int(node.port)))
+
+            try:
+                data, server = client_socket.recvfrom(1024)
+                answer = json.loads(data.decode('utf-8'))
+                result = answer['result']
+                if result:
+                    PRINT_LOGS and print(f"Result of broadcast from {self.host}:{self.port} to {server[0]}:{server[1]}: {result}")
+                    results[node.id] = result
+            except socket.timeout:
+                PRINT_LOGS and print(f'BROADCAST TIMED OUT FOR NODE {node.id} - no result received from {node.host}:{node.port}')    
+
+        return results

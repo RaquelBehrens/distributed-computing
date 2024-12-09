@@ -117,4 +117,10 @@ class Node():
             data_str = message.decode('utf-8')
             data_dict = json.loads(data_str)
 
-            self.server(False, data_dict)
+            result = self.server(False, data_dict)
+
+            PRINT_LOGS and print(f"Sending result of node {self.id}, with {self.host}:{self.port}, to {address}: {result}")
+
+            # Envia confirmação de recebimento de mensagem ao sender
+            result_message = json.dumps({'result': result})
+            server_socket.sendto(result_message.encode('utf-8'), address)
