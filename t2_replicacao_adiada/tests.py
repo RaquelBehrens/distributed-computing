@@ -1,6 +1,8 @@
 import sys
 import json
 import time
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 from node_client import ClientNode
 from node_server import ServerNode
 
@@ -24,19 +26,40 @@ def initialize_clients(clients_data):
     for client_data in clients_data:
         clients.append(ClientNode(id=client_data['node_id'], host=client_data['host'], port=client_data['port']))
 
-# Função para rodar transações para um cliente
-def run_transactions_for_client(client, events):
+def process_event(client, event, start_barrier=None):
+    if start_barrier:
+        start_barrier.wait()
+
     transactions = []
+    for message in event['messages']:
+        command = message['command']
+        item = message['item']
+        value = message['value']
+        transactions.append((command, item, value))
+    
+    result = client.transaction(servers, transactions)
+    transactions.clear()
+    return result
+
+# Função para rodar transações para um cliente
+def run_transactions_for_client_sequencial(client, events):
     for event in events:
-        for message in event['messages']:
-            command = message['command']
-            item = message['item']
-            value = message['value']
-            transactions.append((command, item, value))
+        return process_event(client, event)
         
-        result = client.transaction(servers, transactions)
-        transactions.clear()
-        return result
+# Função para rodar transações para um cliente
+def run_transactions_for_client_parallel(client, events):
+    start_barrier = Barrier(len(events))
+    results = []
+
+    with ThreadPoolExecutor() as executor:
+        futures = [
+            executor.submit(process_event, client, event, start_barrier)
+            for event in events
+        ]
+        for future in futures:
+            results.append(future.result())
+    
+    return results
 
 # Função principal que lê o arquivo de testes e executa os testes
 def run_tests(test_file):
@@ -60,7 +83,10 @@ def run_tests(test_file):
                     break
             
             if client:
-                results = run_transactions_for_client(client, [event])
+                if test_case['order'] == "sequencial":
+                    results = run_transactions_for_client_sequencial(client, [event])
+                else:
+                    results = run_transactions_for_client_parallel(client, [event])
             else:
                 print(f"Cliente com id {event['node_id']} não encontrado.")
         
