@@ -9,6 +9,7 @@ from settings import PRINT_LOGS
 class ClientNode(Node):
     def __init__(self, id, host, port):
         super().__init__(id, host, port)
+        self.udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     
     def isInWrite(self, read_item, write_list):
         for value in write_list:
@@ -59,37 +60,49 @@ class ClientNode(Node):
         PRINT_LOGS and print(f"Transaction {i}: {transactions[i]}")
         if (transactions[i][0] == 'commit'):    
             # envio por abcast
-            results = self.broadcast(servers, write_server, read_server, transactions)
-            transaction_result = results[server_s.id] # outcome recebido
+            self.broadcast(servers, write_server, read_server, transactions)
+            results = self.handle_udp_answer(servers)
+            if results:
+                transaction_result = results[server_s.id] # outcome recebido
+            else:
+                transaction_result = None
         else:
             transaction_result = 'abort'
 
         print(f"Result of transaction = {transaction_result}")
 
     def broadcast(self, nodes, ws, rs, transactions):
-        results = {}
-        client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.logical_clock += 1
+
+        message_sent = {
+        'ws': ws,
+        'rs': rs,
+        'transactions': transactions,
+        "timestamp": self.logical_clock,
+        "sender": self.id
+        }
+
+        item_json = json.dumps(message_sent).encode('utf-8')
         
         for node in nodes:
             PRINT_LOGS and print(f"Broadcast from {self.host}:{self.port} to {node.host}:{node.port}")
+            self.udp_socket.sendto(item_json, (node.host, int(node.port)))
 
-            message_sent = {
-            'ws': ws,
-            'rs': rs,
-            'transactions': transactions
-            }
+    def handle_udp_answer(self, servers):
+        results = {}
+        timeout = 5
+        self.udp_socket.settimeout(timeout)
 
-            item_json = json.dumps(message_sent).encode('utf-8')
-            client_socket.sendto(item_json, (node.host, int(node.port)))
-
+        for _ in range(len(servers)):
             try:
-                data, server = client_socket.recvfrom(1024)
+                data, server = self.udp_socket.recvfrom(1024)
                 answer = json.loads(data.decode('utf-8'))
                 result = answer['result']
+                node = answer['node']
                 if result:
                     PRINT_LOGS and print(f"Result of broadcast from {self.host}:{self.port} to {server[0]}:{server[1]}: {result}")
-                    results[node.id] = result
+                    results[node] = result
             except socket.timeout:
                 PRINT_LOGS and print(f'BROADCAST TIMED OUT FOR NODE {node.id} - no result received from {node.host}:{node.port}')    
-
         return results
+        

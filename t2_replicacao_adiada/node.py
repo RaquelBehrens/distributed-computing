@@ -9,10 +9,7 @@ class Node():
         self.id = id
         self.host = host
         self.port = port
-
-    def configure_node(self, host, port):
-        self.host = host
-        self.port = port
+        self.logical_clock = 0
 
     def create_tcp_socket(self, result=None):
             PRINT_LOGS and print(f"Node {self.id} trying to create TCP connection on {self.host}:{self.port}.")
