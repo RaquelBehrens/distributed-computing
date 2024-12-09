@@ -76,3 +76,12 @@ class ServerNode(Node):
                 result_message = json.dumps({'result': result})
                 self.broadcast_socket.sendto(result_message.encode('utf-8'), address)
                 
+    def handle_udp_client(self, server_socket):
+        while True:
+            message, address = server_socket.recvfrom(1024)
+            PRINT_LOGS and print(f"Broadcast received! Node {self.id}, with {self.host}:{self.port}, received: {message!r} from {address}")
+
+            data_str = message.decode('utf-8')
+            data_dict = json.loads(data_str)
+
+            return data_dict, address
