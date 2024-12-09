@@ -42,18 +42,25 @@ class ClientNode(Node):
                 if (in_write_server[0]):
                     print(f"Value {in_write_server[1]} of {current_transaction[1]} is up to date.")
                 else:
-                    server_thread = threading.Thread(target=server_s.server, args=(True,))
-                    server_thread.start()
-
                     message = {
                         'type': 'send_transaction',
                         'transaction': current_transaction[1]
                     }
 
-                    result = self.create_tcp_client(server_s.host, server_s.port, message)
+                    max_attempts = 10
+                    for pings in range(max_attempts):
+                        PRINT_LOGS and print(f"TRYING TO CONNECT TO TCP Ping {pings}")
+                        try:
+                            result = self.create_tcp_client(server_s.host, server_s.port, message)
+                            break
+                        except ConnectionRefusedError as e:
+                            PRINT_LOGS and print(f"TCP Connection refused: {e}")
+                            if pings == max_attempts - 1:
+                                PRINT_LOGS and print("Max attempts reached, no acknowledgment received.")
+                                break
+
                     if (result):
                         read_server.append(result)
-
             i += 1
 
         PRINT_LOGS and print(f"Transaction {i}: {transactions[i]}")

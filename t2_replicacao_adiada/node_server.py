@@ -8,18 +8,21 @@ from settings import PRINT_LOGS
 class ServerNode(Node):
     def __init__(self, id, host, port):
         super().__init__(id, host, port)
-
-    def initialize(self):
         self.db = {'x':(0,0), 'y': (0,0)} #  {item1: (valor1, versao1), item2: (valor2, versao2)}
 
+    def initialize(self):
         self.broadcast_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.broadcast_socket.bind((self.host, int(self.port)))
         
         PRINT_LOGS and print(f"Node {self.id} listening UDP in {self.host}:{self.port}.")
         
-        thread_server = threading.Thread(target=self.server)
-        thread_server.daemon = True
-        thread_server.start()
+        thread_broadcast = threading.Thread(target=self.server)
+        thread_broadcast.daemon = True
+        thread_broadcast.start()
+
+        thread_tcp = threading.Thread(target=self.server, args=(True,))
+        thread_tcp.daemon = True
+        thread_tcp.start()
 
     def save_in_db(self, data):
         data_str = data.decode('utf-8')
@@ -31,7 +34,8 @@ class ServerNode(Node):
         last_committed = 0
         
         if (consult):
-            self.create_tcp_socket()
+            while True:
+                self.create_tcp_socket()
         else:
             while True:
                 PRINT_LOGS and print(f"Deliver in Node {self.id}.")
@@ -75,6 +79,8 @@ class ServerNode(Node):
                 # Envia confirmação de recebimento de mensagem ao sender
                 result_message = json.dumps({'result': result})
                 self.broadcast_socket.sendto(result_message.encode('utf-8'), address)
+
+                print(f"Result of DB {self.id}: {self.db}")
                 
     def handle_udp_client(self, server_socket):
         while True:
