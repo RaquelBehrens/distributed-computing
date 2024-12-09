@@ -1,1 +1,1 @@
-PRINT_LOGS = True
+PRINT_LOGS = False

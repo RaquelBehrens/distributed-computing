@@ -19,7 +19,7 @@ class ClientNode(Node):
 
     def select_server(self, id_server, list_servers):
         for server in list_servers:
-            if server.id == id_server:
+            if int(server.id) == int(id_server):
                 return server
 
     # transactions = [('read',x), ('write',y, 2), ('commit')]
