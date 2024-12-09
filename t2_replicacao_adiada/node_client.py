@@ -97,14 +97,21 @@ class ClientNode(Node):
         }
 
         item_json = json.dumps(message_sent).encode('utf-8')
+        ping = 10
         
         for node in nodes:
-            PRINT_LOGS and print(f"Broadcast from {self.host}:{self.port} to {node.host}:{node.port}")
-            self.udp_socket.sendto(item_json, (node.host, int(node.port)))
+            for i in range(ping):
+                try:
+                    PRINT_LOGS and print(f"Broadcast from {self.host}:{self.port} to {node.host}:{node.port}")
+                    self.udp_socket.sendto(item_json, (node.host, int(node.port)))
+                    break
+                except Exception as e:
+                    PRINT_LOGS and print(f"Ping {i}: Error sending broadcast from {self.host}:{self.port} to {node.host}:{node.port}: {e}")
+                    continue
 
     def handle_udp_answer(self, servers):
         results = {}
-        timeout = 5
+        timeout = 10
         self.udp_socket.settimeout(timeout)
 
         for _ in range(len(servers)):
@@ -117,6 +124,6 @@ class ClientNode(Node):
                     PRINT_LOGS and print(f"Result of broadcast from {self.host}:{self.port} to {server[0]}:{server[1]}: {result}")
                     results[node] = result
             except socket.timeout:
-                PRINT_LOGS and print(f'BROADCAST TIMED OUT FOR NODE {node.id} - no result received from {node.host}:{node.port}')    
+                PRINT_LOGS and print(f'BROADCAST TIMED OUT FOR NODE {node} - no result received from {node.host}:{node.port}')    
         return results
         
