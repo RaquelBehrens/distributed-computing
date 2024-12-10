@@ -71,7 +71,7 @@ class ServerNode(Node):
                     else:
                         # Se o timestamp for menor que o esperado (transação desordenada),
                         # remove a mensagem do buffer sem processá-la
-                        if next_message["timestamp"] < last_committed:
+                        if next_message["timestamp"] <= last_committed:
                             PRINT_LOGS and print(f"Discarding message with out-of-order timestamp: {next_message['timestamp']} (expected: {last_committed + 1})")
                             self.message_buffer.pop(0)  # Remove a mensagem desordenada
 

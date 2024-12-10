@@ -128,6 +128,6 @@ class ClientNode(Node):
                     PRINT_LOGS and print(f"Result of broadcast from {server[0]}:{server[1]} to {self.host}:{self.port}: {result}")
                     results[node] = result
             except socket.timeout:
-                PRINT_LOGS and print(f'BROADCAST TIMED OUT FOR NODE {node} - no result received from {server[0]}:{server[1]}')    
+                PRINT_LOGS and print(f'BROADCAST TIMED OUT FOR NODE {self.id} - no result received from {server[0]}:{server[1]}')    
         return results
         
