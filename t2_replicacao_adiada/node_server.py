@@ -58,7 +58,7 @@ class ServerNode(Node):
                     
                     # A mensagem é processada se seu timestamp for o próximo esperado
                     # 'last_committed' é o timestamp da última transação confirmada. Se o próximo timestamp na fila
-                    # for o próximo valor esperado (last_committed + 1), isso indica que a ordem está sendo respeitada.
+                    # for maior que o timestamp da última mensagem salva, isso indica que a ordem está sendo respeitada.
                     if next_message["timestamp"] > last_committed:
                         # Processa a mensagem
                         self.process_message(next_message, address)
@@ -71,12 +71,9 @@ class ServerNode(Node):
                     else:
                         # Se o timestamp for menor que o esperado (transação desordenada),
                         # remove a mensagem do buffer sem processá-la
-                        if next_message["timestamp"] < last_committed + 1:
+                        if next_message["timestamp"] < last_committed:
                             PRINT_LOGS and print(f"Discarding message with out-of-order timestamp: {next_message['timestamp']} (expected: {last_committed + 1})")
                             self.message_buffer.pop(0)  # Remove a mensagem desordenada
-                        
-                        # Se a ordem não for a esperada (timestamp descontinuado), quebra o loop e aguarda mais mensagens
-                        break
 
     def process_message(self, deliver, address):
         PRINT_LOGS and print(f"Begin to process deliver in node {self.id}")
