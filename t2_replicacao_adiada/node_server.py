@@ -21,6 +21,10 @@ class ServerNode(Node):
         thread_broadcast.daemon = True
         thread_broadcast.start()
 
+        thread_broadcast = threading.Thread(target=self.handle_udp_client)
+        thread_broadcast.daemon = True
+        thread_broadcast.start()
+
         thread_tcp = threading.Thread(target=self.server, args=(True,))
         thread_tcp.daemon = True
         thread_tcp.start()
@@ -46,27 +50,10 @@ class ServerNode(Node):
                 self.create_tcp_socket()
         else:
             while True:
-                PRINT_LOGS and print(f"Deliver in Node {self.id}.")
-                # recebe mensagem por abcast
-                # deliver from UDP broadcast
-                deliver, address = self.handle_udp_client(self.broadcast_socket)
-
-                PRINT_LOGS and print(f"Received timestamp in Node {self.id}: {deliver['timestamp']}")
-
-                # Adicionar mensagem ao buffer
-                PRINT_LOGS and print(f"Add message to buffer of node {self.id}")
-                self.message_buffer.append(deliver)
-
-                # Ordena o buffer por timestamp
-                # Isso garante que as mensagens serão processadas na ordem correta de acordo com seu timestamp,
-                # estabelecendo a ordem total. Mesmo que as mensagens cheguem fora de ordem devido a latência de rede,
-                # elas serão ordenadas aqui para que o processamento aconteça na ordem esperada.
-                self.message_buffer.sort(key=lambda m: m["timestamp"])
-
                 # Processa as mensagens na ordem correta
-                while self.message_buffer:
+                if self.message_buffer:
                     # Obtém a próxima mensagem na fila
-                    next_message = self.message_buffer[0]
+                    next_message, address = self.message_buffer[0]
                     PRINT_LOGS and print(f"Node {self.id}: Check timestamp {next_message['timestamp']} if greater than {last_committed}")
                     
                     # A mensagem é processada se seu timestamp for o próximo esperado
@@ -133,12 +120,30 @@ class ServerNode(Node):
         self.broadcast_socket.sendto(result_message.encode('utf-8'), address)
         print(f"Result of DB {self.id}: {self.db}")
 
-    def handle_udp_client(self, server_socket):
+    def handle_udp_client(self):
         while True:
-            message, address = server_socket.recvfrom(1024)
-            PRINT_LOGS and print(f"Broadcast received! Node {self.id}, with {self.host}:{self.port}, received: {message!r} from {address}")
+            try:
+                PRINT_LOGS and print(f"Deliver in Node {self.id}.")
+                # recebe mensagem por abcast
+                # deliver from UDP broadcast
+                
+                message, address = self.broadcast_socket.recvfrom(1024)
+                PRINT_LOGS and print(f"Broadcast received! Node {self.id}, with {self.host}:{self.port}, received: {message!r} from {address}")
 
-            data_str = message.decode('utf-8')
-            data_dict = json.loads(data_str)
+                data_str = message.decode('utf-8')
+                deliver = json.loads(data_str)
 
-            return data_dict, address
+                PRINT_LOGS and print(f"Received timestamp in Node {self.id}: {deliver['timestamp']}")
+
+                # Adicionar mensagem ao buffer
+                PRINT_LOGS and print(f"Add message to buffer of node {self.id}")
+                self.message_buffer.append((deliver, address))
+
+                # Ordena o buffer por timestamp
+                # Isso garante que as mensagens serão processadas na ordem correta de acordo com seu timestamp,
+                # estabelecendo a ordem total. Mesmo que as mensagens cheguem fora de ordem devido a latência de rede,
+                # elas serão ordenadas aqui para que o processamento aconteça na ordem esperada.
+                self.message_buffer.sort(key=lambda m: m[0]["timestamp"])
+            except Exception as e:
+                PRINT_LOGS and print(f"ENode {self.id}, with {self.host}:{self.port}: error receiving Broadcast from {address}: {e}")
+                continue

@@ -87,7 +87,7 @@ class Node():
             data_dict = json.loads(data_str)
 
         except Exception as e:
-            print(f"Error during transmission: {e}")
+            PRINT_LOGS and print(f"Error during transmission: {e}")
         finally:
             PRINT_LOGS and print(f"TCP Connection of Node {self.id} closed")
             client_socket.close()

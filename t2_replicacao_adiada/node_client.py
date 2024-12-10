@@ -56,7 +56,7 @@ class ClientNode(Node):
                     max_attempts = 10
                     result = None
                     for pings in range(max_attempts):
-                        PRINT_LOGS and print(f"TRYING TO CONNECT TO TCP Ping {pings}")
+                        PRINT_LOGS and print(f"NODE {self.id} TRYING TO CONNECT TO TCP Ping {pings}")
                         try:
                             result = self.create_tcp_client(server_s.host, server_s.port, message)
                             break
@@ -75,8 +75,12 @@ class ClientNode(Node):
             # envio por abcast
             self.broadcast(servers, write_server, read_server, transactions)
             results = self.handle_udp_answer(servers)
+            print(results)
             if results:
-                transaction_result = results[server_s.id] # outcome recebido
+                try:
+                    transaction_result = results[server_s.id] # outcome recebido
+                except:
+                    transaction_result = None
             else:
                 transaction_result = None
         else:
@@ -121,9 +125,9 @@ class ClientNode(Node):
                 result = answer['result']
                 node = answer['node']
                 if result:
-                    PRINT_LOGS and print(f"Result of broadcast from {self.host}:{self.port} to {server[0]}:{server[1]}: {result}")
+                    PRINT_LOGS and print(f"Result of broadcast from {server[0]}:{server[1]} to {self.host}:{self.port}: {result}")
                     results[node] = result
             except socket.timeout:
-                PRINT_LOGS and print(f'BROADCAST TIMED OUT FOR NODE {node} - no result received from {node.host}:{node.port}')    
+                PRINT_LOGS and print(f'BROADCAST TIMED OUT FOR NODE {node} - no result received from {server[0]}:{server[1]}')    
         return results
         
